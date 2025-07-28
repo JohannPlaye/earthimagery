@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test VideoPlayer</title>
+</head>
+<body>
+    <h1>Test de l'API VideoPlayer</h1>
+    
+    <h2>Test 1: Plage valide (22-24 juillet)</h2>
+    <video controls width="640" height="360">
+        <source src="http://localhost:10000/api/playlist?from=2025-07-22&to=2025-07-24" type="application/vnd.apple.mpegurl">
+        Votre navigateur ne supporte pas HLS.
+    </video>
+    
+    <h2>Test 2: Date unique valide (22 juillet)</h2>
+    <video controls width="640" height="360">
+        <source src="http://localhost:10000/api/playlist?from=2025-07-22&to=2025-07-22" type="application/vnd.apple.mpegurl">
+        Votre navigateur ne supporte pas HLS.
+    </video>
+    
+    <p><a href="http://localhost:10000">Retour à l'application principale</a></p>
+</body>
+</html>

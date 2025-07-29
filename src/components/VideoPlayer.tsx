@@ -2,26 +2,41 @@
 
 import { useEffect, useRef, useState, useMemo } from 'react';
 
+interface SatelliteDataset {
+  key: string;
+  satellite: string;
+  sector: string;
+  product: string;
+  resolution: string;
+  enabled: boolean;
+  auto_download: boolean;
+  status: 'available' | 'downloaded' | 'processing' | 'error';
+  playlist_url?: string;
+  file_size?: number;
+}
+
 interface VideoPlayerProps {
   fromDate: Date;
   toDate: Date;
+  selectedDataset?: SatelliteDataset | null;
 }
 
-export default function VideoPlayer({ fromDate, toDate }: VideoPlayerProps) {
+export default function VideoPlayer({ fromDate, toDate, selectedDataset }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [availablePlaylists, setAvailablePlaylists] = useState<string[]>([]);
 
   const formattedFromDate = useMemo(() => fromDate.toISOString().split('T')[0], [fromDate]);
   const formattedToDate = useMemo(() => toDate.toISOString().split('T')[0], [toDate]);
 
-  // Reset states when dates change
+  // Reset states when dates or dataset change
   useEffect(() => {
     setIsLoading(true);
     setError(null);
-  }, [formattedFromDate, formattedToDate]);
+  }, [formattedFromDate, formattedToDate, selectedDataset]);
 
   useEffect(() => {
     setMounted(true);
@@ -32,7 +47,25 @@ export default function VideoPlayer({ fromDate, toDate }: VideoPlayerProps) {
     if (!mounted || !videoRef.current) return;
 
     const video = videoRef.current;
-    const playlistUrl = `/api/playlist?from=${formattedFromDate}&to=${formattedToDate}`;
+    
+    // Déterminer l'URL de la playlist à utiliser
+    let playlistUrl: string;
+    
+    console.log('🔍 VideoPlayer Debug Info:');
+    console.log('  - selectedDataset:', selectedDataset);
+    console.log('  - selectedDataset?.playlist_url:', selectedDataset?.playlist_url);
+    console.log('  - fromDate:', formattedFromDate);
+    console.log('  - toDate:', formattedToDate);
+    
+    if (selectedDataset && selectedDataset.playlist_url) {
+      // Utiliser le dataset satellitaire sélectionné
+      playlistUrl = selectedDataset.playlist_url;
+      console.log('🛰️ Using satellite dataset playlist:', playlistUrl);
+    } else {
+      // Utiliser l'ancienne méthode avec les données de test
+      playlistUrl = `/api/playlist?from=${formattedFromDate}&to=${formattedToDate}`;
+      console.log('🎯 Using test data playlist:', playlistUrl);
+    }
 
     console.log('🎯 Initializing HLS with:', playlistUrl);
 
@@ -218,7 +251,7 @@ export default function VideoPlayer({ fromDate, toDate }: VideoPlayerProps) {
         hlsRef.current = null;
       }
     };
-  }, [formattedFromDate, formattedToDate, mounted, fromDate, toDate]);
+  }, [formattedFromDate, formattedToDate, mounted, fromDate, toDate, selectedDataset]);
 
   if (!mounted) {
     return (

@@ -1,0 +1,5 @@
+# Configuration EarthImagery
+
+Ce dossier contient les fichiers de configuration de l'application EarthImagery.
+
+Les fichiers de tracking des téléchargements (download-tracking.json) sont ignorés par Git car ils contiennent des données dynamiques qui changent à chaque exécution.

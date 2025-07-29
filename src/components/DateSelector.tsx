@@ -102,6 +102,10 @@ export default function DateSelector({
   };
 
   const handleGenerate = () => {
+    console.log('🔍 DateSelector Debug Info:');
+    console.log('  - fromDate:', fromDate?.format('YYYY-MM-DD'));
+    console.log('  - toDate:', toDate?.format('YYYY-MM-DD'));
+    
     const validationError = validateDateRange(fromDate, toDate);
     if (validationError) {
       setError(validationError);
@@ -109,6 +113,7 @@ export default function DateSelector({
     }
 
     setError(null);
+    console.log('🚀 Calling onDateRangeSelect with:', fromDate!.format('YYYY-MM-DD'), toDate!.format('YYYY-MM-DD'));
     onDateRangeSelect(
       fromDate!.format('YYYY-MM-DD'),
       toDate!.format('YYYY-MM-DD')

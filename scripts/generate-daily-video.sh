@@ -1,140 +1,191 @@
 #!/bin/bash
 
 # Script de génération des vidéos journalières et fragments HLS
-# À exécuter quotidiennement pour traiter les images du jour précédent
+# Usage: ./generate-daily-video.sh DATASET_KEY DATE
+# Exemple: ./generate-daily-video.sh GOES18.hi.GEOCOLOR.600x600 2025-07-19
+
+set -e
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-
-# Variables d'environnement
 DATA_ROOT_PATH="$PROJECT_ROOT/public/data"
-IMAGES_DIR="images"
-VIDEOS_DIR="videos"
-HLS_DIR="hls"
-LOGS_DIR="logs"
 
 # Configuration FFmpeg
-VIDEO_FPS=2  # 2 FPS pour que 24 images durent 12 secondes
+VIDEO_FPS=24  # 24 FPS pour les vraies données satellitaires
 VIDEO_CRF=23
 VIDEO_PRESET="medium"
 HLS_SEGMENT_TIME=10
 
-LOG_FILE="$DATA_ROOT_PATH/$LOGS_DIR/generate-video-$(date +%Y%m%d).log"
+# Paramètres d'entrée
+DATASET_KEY="$1"
+TARGET_DATE="$2"
 
-# Date à traiter (par défaut: hier)
-TARGET_DATE=${1:-$(date -d "yesterday" +%Y-%m-%d)}
+if [ -z "$DATASET_KEY" ] || [ -z "$TARGET_DATE" ]; then
+    echo "❌ Usage: $0 DATASET_KEY TARGET_DATE"
+    echo "   Exemple: $0 GOES18.hi.GEOCOLOR.600x600 2025-07-19"
+    echo "   Ou pour tous les datasets: $0 all 2025-07-19"
+    exit 1
+fi
 
 # Création des dossiers si nécessaire
-mkdir -p "$DATA_ROOT_PATH/$VIDEOS_DIR"
-mkdir -p "$DATA_ROOT_PATH/$HLS_DIR"
-mkdir -p "$DATA_ROOT_PATH/$LOGS_DIR"
+mkdir -p "$DATA_ROOT_PATH/videos"
+mkdir -p "$DATA_ROOT_PATH/hls"
+mkdir -p "$DATA_ROOT_PATH/logs"
+
+LOG_FILE="$DATA_ROOT_PATH/logs/generate-video-$(date +%Y%m%d).log"
 
 # Fonction de logging
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
 }
 
-# Vérification de la présence de ffmpeg
+# Vérification de FFmpeg
 if ! command -v ffmpeg &> /dev/null; then
-    log "✗ Erreur: ffmpeg n'est pas installé"
+    log "❌ ffmpeg n'est pas installé"
     exit 1
 fi
 
-log "Début de génération vidéo pour $TARGET_DATE"
+# Fonction pour trouver le dossier d'images selon le dataset
+find_images_directory() {
+    local dataset_key="$1"
+    local date="$2"
+    
+    # Conversion du dataset key en chemin: GOES18.hi.GEOCOLOR.600x600 -> GOES18/hi/GEOCOLOR/600x600
+    IFS='.' read -ra PARTS <<< "$dataset_key"
+    if [ ${#PARTS[@]} -eq 4 ]; then
+        local satellite="${PARTS[0]}"
+        local sector="${PARTS[1]}"
+        local product="${PARTS[2]}"
+        local resolution="${PARTS[3]}"
+        echo "$DATA_ROOT_PATH/$satellite/$sector/$product/$resolution/$date"
+    else
+        echo ""
+    fi
+}
 
-# Chemins avec structure YYYY/MM/DD
-YEAR=$(echo "$TARGET_DATE" | cut -d'-' -f1)
-MONTH=$(echo "$TARGET_DATE" | cut -d'-' -f2)
-DAY=$(echo "$TARGET_DATE" | cut -d'-' -f3)
-IMAGES_DIR_DATE="$DATA_ROOT_PATH/$IMAGES_DIR/$YEAR/$MONTH/$DAY"
-VIDEO_OUTPUT="$DATA_ROOT_PATH/$VIDEOS_DIR/day-$TARGET_DATE.mp4"
-HLS_OUTPUT_DIR="$DATA_ROOT_PATH/$HLS_DIR/$TARGET_DATE"
-HLS_PLAYLIST="$HLS_OUTPUT_DIR/playlist.m3u8"
+# Fonction pour générer une vidéo pour un dataset
+generate_video_for_dataset() {
+    local dataset_key="$1"
+    local target_date="$2"
+    
+    log "🎬 Génération vidéo pour $dataset_key - $target_date"
+    
+    # Détermination du dossier d'images
+    local images_dir=$(find_images_directory "$dataset_key" "$target_date")
+    
+    if [ -z "$images_dir" ] || [ ! -d "$images_dir" ]; then
+        log "❌ Dossier d'images non trouvé: $images_dir"
+        return 1
+    fi
+    
+    # Comptage des images
+    local image_count=$(find "$images_dir" -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" | wc -l)
+    if [ "$image_count" -eq 0 ]; then
+        log "❌ Aucune image trouvée dans $images_dir"
+        return 1
+    fi
+    
+    log "📊 $image_count images trouvées dans $images_dir"
+    
+    # Chemins de sortie
+    local video_output="$DATA_ROOT_PATH/videos/$dataset_key-$target_date.mp4"
+    local hls_output_dir="$DATA_ROOT_PATH/hls/$dataset_key/$target_date"
+    local hls_playlist="$hls_output_dir/playlist.m3u8"
+    
+    mkdir -p "$hls_output_dir"
+    
+    # Création de la liste d'images triées chronologiquement
+    local images_list="/tmp/images-$dataset_key-$target_date.txt"
+    find "$images_dir" -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" | sort > "$images_list"
+    
+    # Vérification du tri
+    local first_image=$(head -n1 "$images_list")
+    local last_image=$(tail -n1 "$images_list")
+    log "🎞️ Première image: $(basename "$first_image")"
+    log "🎞️ Dernière image: $(basename "$last_image")"
+    
+    # Génération vidéo MP4
+    log "🔄 Génération MP4..."
+    local temp_video="/tmp/temp-$dataset_key-$target_date.mp4"
+    
+    if ffmpeg -y \
+        -f concat \
+        -safe 0 \
+        -i <(sed 's/^/file /' "$images_list") \
+        -r "$VIDEO_FPS" \
+        -c:v libx264 \
+        -crf "$VIDEO_CRF" \
+        -preset "$VIDEO_PRESET" \
+        -pix_fmt yuv420p \
+        -movflags +faststart \
+        "$temp_video" &>> "$LOG_FILE"; then
+        
+        # Génération HLS
+        log "🔄 Génération HLS..."
+        if ffmpeg -y \
+            -i "$temp_video" \
+            -c:v libx264 \
+            -preset ultrafast \
+            -pix_fmt yuv420p \
+            -g 4 \
+            -keyint_min 4 \
+            -sc_threshold 0 \
+            -b:v 500k \
+            -maxrate 500k \
+            -bufsize 1000k \
+            -avoid_negative_ts make_zero \
+            -muxdelay 0 \
+            -muxpreload 0 \
+            -start_number 0 \
+            -hls_time "$HLS_SEGMENT_TIME" \
+            -hls_list_size 0 \
+            -hls_segment_filename "$hls_output_dir/segment_%03d.ts" \
+            -f hls \
+            "$hls_playlist" &>> "$LOG_FILE"; then
+            
+            # Finalisation
+            mv "$temp_video" "$video_output"
+            rm -f "$images_list"
+            
+            local video_size=$(du -h "$video_output" | cut -f1)
+            local duration=$(echo "scale=1; $image_count / $VIDEO_FPS" | bc -l)
+            
+            log "✅ Vidéo générée: $video_output ($video_size)"
+            log "🎯 Durée: ${duration}s à ${VIDEO_FPS}fps"
+            log "📺 HLS: $hls_playlist"
+            
+            return 0
+        else
+            log "❌ Échec génération HLS"
+            rm -f "$temp_video" "$images_list"
+            return 1
+        fi
+    else
+        log "❌ Échec génération MP4"
+        rm -f "$images_list"
+        return 1
+    fi
+}
 
-# Vérification de l'existence des images
-if [ ! -d "$IMAGES_DIR_DATE" ]; then
-    log "✗ Aucun dossier d'images trouvé pour $TARGET_DATE"
-    exit 1
-fi
-
-# Comptage des images
-IMAGE_COUNT=$(find "$IMAGES_DIR_DATE" -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" | wc -l)
-if [ "$IMAGE_COUNT" -eq 0 ]; then
-    log "✗ Aucune image trouvée dans $IMAGES_DIR_DATE"
-    exit 1
-fi
-
-log "Trouvé $IMAGE_COUNT images pour $TARGET_DATE"
-
-# Création du dossier HLS
-mkdir -p "$HLS_OUTPUT_DIR"
-
-# Génération de la vidéo MP4 temporaire
-log "Génération de la vidéo MP4..."
-TEMP_VIDEO="/tmp/temp-$TARGET_DATE.mp4"
-
-if ffmpeg -y \
-    -framerate "$VIDEO_FPS" \
-    -pattern_type glob \
-    -i "$IMAGES_DIR_DATE/*.jpg" \
-    -c:v libx264 \
-    -crf "$VIDEO_CRF" \
-    -preset "$VIDEO_PRESET" \
-    -movflags +faststart \
-    -pix_fmt yuv420p \
-    "$TEMP_VIDEO" 2>>"$LOG_FILE"; then
-    log "✓ Vidéo MP4 générée: $TEMP_VIDEO"
+# Script principal
+if [ "$DATASET_KEY" = "all" ]; then
+    log "🔄 Traitement de tous les datasets pour $TARGET_DATE"
+    
+    # Recherche de tous les datasets disponibles
+    find "$DATA_ROOT_PATH" -type d -name "$TARGET_DATE" | while read -r date_dir; do
+        # Extraire le dataset key du chemin
+        local path_parts=$(echo "$date_dir" | sed "s|$DATA_ROOT_PATH/||" | sed "s|/$TARGET_DATE||")
+        local dataset_key=$(echo "$path_parts" | tr '/' '.')
+        
+        if [[ "$dataset_key" =~ ^[A-Z0-9]+\.[a-z]+\.[A-Z]+\.[0-9x]+$ ]]; then
+            log "📹 Traitement: $dataset_key"
+            generate_video_for_dataset "$dataset_key" "$TARGET_DATE"
+        fi
+    done
+    
+    log "✅ Traitement terminé"
 else
-    log "✗ Erreur lors de la génération MP4"
-    exit 1
+    # Mode single dataset
+    generate_video_for_dataset "$DATASET_KEY" "$TARGET_DATE"
 fi
-
-# Génération des fragments HLS
-log "Génération des fragments HLS..."
-if ffmpeg -y \
-    -i "$TEMP_VIDEO" \
-    -c:v libx264 \
-    -preset ultrafast \
-    -pix_fmt yuv420p \
-    -g 4 \
-    -keyint_min 4 \
-    -sc_threshold 0 \
-    -b:v 500k \
-    -maxrate 500k \
-    -bufsize 1000k \
-    -avoid_negative_ts make_zero \
-    -muxdelay 0 \
-    -muxpreload 0 \
-    -start_number 0 \
-    -hls_time "$HLS_SEGMENT_TIME" \
-    -hls_list_size 0 \
-    -hls_segment_filename "$HLS_OUTPUT_DIR/segment_%03d.ts" \
-    -f hls \
-    "$HLS_PLAYLIST" 2>>"$LOG_FILE"; then
-    log "✓ Fragments HLS générés dans $HLS_OUTPUT_DIR"
-else
-    log "✗ Erreur lors de la génération HLS"
-    rm -f "$TEMP_VIDEO"
-    exit 1
-fi
-
-# Déplacement de la vidéo finale
-mv "$TEMP_VIDEO" "$VIDEO_OUTPUT"
-log "✓ Vidéo finale: $VIDEO_OUTPUT"
-
-# Calcul de la taille des fichiers
-VIDEO_SIZE=$(du -h "$VIDEO_OUTPUT" | cut -f1)
-HLS_SIZE=$(du -sh "$HLS_OUTPUT_DIR" | cut -f1)
-
-log "Taille vidéo MP4: $VIDEO_SIZE"
-log "Taille dossier HLS: $HLS_SIZE"
-
-# Nettoyage des vidéos anciennes (garde 90 jours)
-find "$DATA_ROOT_PATH/$VIDEOS_DIR" -name "day-*.mp4" -mtime +90 -delete 2>/dev/null
-find "$DATA_ROOT_PATH/$HLS_DIR" -type d -name "20*" -mtime +90 -exec rm -rf {} \; 2>/dev/null
-
-# Nettoyage des logs anciens
-find "$DATA_ROOT_PATH/$LOGS_DIR" -name "generate-video-*.log" -mtime +7 -delete 2>/dev/null
-
-log "Génération terminée pour $TARGET_DATE"

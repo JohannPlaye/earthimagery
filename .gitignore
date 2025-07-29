@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# EarthImagery data files
+/public/data/
+!/public/data/.gitkeep
+/config/download-tracking.json
+!/config/.gitkeep
+*.log

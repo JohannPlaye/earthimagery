@@ -11,7 +11,7 @@ const DATASET_TOGGLE_SCRIPT = path.join(process.cwd(), 'scripts', 'dataset-toggl
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { satellite, sector, product, resolution, enabled, auto_download } = body;
+    const { satellite, sector, product, resolution, enabled, auto_download, download_only } = body;
 
     // Validation des paramètres
     if (!satellite || !sector || !product || !resolution) {
@@ -21,7 +21,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (enabled) {
+    if (download_only) {
+      // Modifier uniquement le statut de téléchargement automatique
+      const command = `bash "${DATASET_TOGGLE_SCRIPT}" toggle-download "${satellite}" "${sector}" "${product}" "${resolution}" "${auto_download ? 'true' : 'false'}"`;
+      
+      console.log(`🔧 Modification téléchargement: ${satellite}.${sector}.${product}.${resolution} (auto: ${auto_download})`);
+      
+      const { stdout, stderr } = await execAsync(command, {
+        timeout: 30000,
+        cwd: process.cwd()
+      });
+
+      if (stderr && !stderr.includes('Warning')) {
+        console.error('Erreur de modification téléchargement:', stderr);
+        throw new Error(`Erreur de modification: ${stderr}`);
+      }
+
+      console.log('✅ Téléchargement modifié');
+      return NextResponse.json({
+        success: true,
+        message: `Téléchargement ${satellite}.${sector}.${product}.${resolution} ${auto_download ? 'activé' : 'désactivé'}`,
+        auto_download
+      });
+
+    } else if (enabled) {
       // Activer le dataset
       const autoFlag = auto_download ? 'true' : 'false';
       const command = `bash "${DATASET_TOGGLE_SCRIPT}" enable "${satellite}" "${sector}" "${product}" "${resolution}" "${autoFlag}"`;

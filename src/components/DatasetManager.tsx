@@ -98,6 +98,33 @@ export default function DatasetManager() {
     }
   };
 
+  // Activer/désactiver uniquement le téléchargement automatique
+  const toggleAutoDownload = async (datasetKey: string, autoDownload: boolean) => {
+    try {
+      const [satellite, sector, product, resolution] = datasetKey.split('.');
+      
+      const response = await fetch('/api/datasets/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          satellite,
+          sector,
+          product,
+          resolution,
+          enabled: false, // On ne change pas le statut d'affichage
+          auto_download: autoDownload,
+          download_only: true // Flag pour indiquer qu'on veut juste changer le téléchargement
+        })
+      });
+
+      if (!response.ok) throw new Error('Erreur lors de la mise à jour');
+      
+      await loadDatasets();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur de mise à jour');
+    }
+  };
+
   // Synchroniser les datasets
   const syncDatasets = async () => {
     try {
@@ -337,23 +364,21 @@ export default function DatasetManager() {
                                     size="small"
                                   />
                                 }
-                                label=""
+                                label={<Typography variant="caption">Afficher</Typography>}
                                 sx={{ m: 0 }}
                               />
-                              {dataset.enabled && (
-                                <FormControlLabel
-                                  control={
-                                    <Switch
-                                      checked={dataset.auto_download}
-                                      onChange={(e) => toggleDataset(dataset.key, true, e.target.checked)}
-                                      size="small"
-                                      color="secondary"
-                                    />
-                                  }
-                                  label={<Typography variant="caption">Auto</Typography>}
-                                  sx={{ m: 0 }}
-                                />
-                              )}
+                              <FormControlLabel
+                                control={
+                                  <Switch
+                                    checked={dataset.auto_download}
+                                    onChange={(e) => toggleAutoDownload(dataset.key, e.target.checked)}
+                                    size="small"
+                                    color="secondary"
+                                  />
+                                }
+                                label={<Typography variant="caption">Télécharger</Typography>}
+                                sx={{ m: 0 }}
+                              />
                             </Box>
                           </Box>
                         ))}

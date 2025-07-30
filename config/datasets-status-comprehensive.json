@@ -1,0 +1,162 @@
+{
+  "enabled_datasets": {
+    "GOES18.hi.GEOCOLOR.600x600": {
+      "auto_download": true,
+      "description": "GOES-18 Hawaii GEOCOLOR 600x600",
+      "satellite": "GOES18",
+      "sector": "hi", 
+      "product": "GEOCOLOR",
+      "resolution": "600x600"
+    }
+  },
+  "disabled_datasets": {},
+  "discovered_datasets": {
+    "GOES19.CONUS.GEOCOLOR.10000x6000": {
+      "satellite": "GOES19",
+      "sector": "CONUS",
+      "product": "GEOCOLOR",
+      "resolution": "10000x6000",
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-19 CONUS GEOCOLOR 10000x6000"
+    },
+    "GOES19.CONUS.GEOCOLOR.1250x750": {
+      "satellite": "GOES19",
+      "sector": "CONUS",
+      "product": "GEOCOLOR", 
+      "resolution": "1250x750",
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-19 CONUS GEOCOLOR 1250x750"
+    },
+    "GOES19.CONUS.GEOCOLOR.2500x1500": {
+      "satellite": "GOES19",
+      "sector": "CONUS",
+      "product": "GEOCOLOR",
+      "resolution": "2500x1500",
+      "auto_download": false,
+      "status": "available", 
+      "description": "GOES-19 CONUS GEOCOLOR 2500x1500"
+    },
+    "GOES19.CONUS.GEOCOLOR.416x250": {
+      "satellite": "GOES19",
+      "sector": "CONUS",
+      "product": "GEOCOLOR",
+      "resolution": "416x250",
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-19 CONUS GEOCOLOR 416x250"
+    },
+    "GOES19.CONUS.GEOCOLOR.5000x3000": {
+      "satellite": "GOES19",
+      "sector": "CONUS",
+      "product": "GEOCOLOR",
+      "resolution": "5000x3000",
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-19 CONUS GEOCOLOR 5000x3000"
+    },
+    "GOES19.CONUS.GEOCOLOR.625x375": {
+      "satellite": "GOES19",
+      "sector": "CONUS",
+      "product": "GEOCOLOR",
+      "resolution": "625x375",
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-19 CONUS GEOCOLOR 625x375"
+    },
+    "GOES19.FD.GEOCOLOR.10848x10848": {
+      "satellite": "GOES19",
+      "sector": "FD",
+      "product": "GEOCOLOR",
+      "resolution": "10848x10848",
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-19 Full Disk GEOCOLOR 10848x10848"
+    },
+    "GOES19.FD.GEOCOLOR.1808x1808": {
+      "satellite": "GOES19",
+      "sector": "FD",
+      "product": "GEOCOLOR",
+      "resolution": "1808x1808",
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-19 Full Disk GEOCOLOR 1808x1808"
+    },
+    "GOES18.wus.GEOCOLOR.1000x1000": {
+      "satellite": "GOES18",
+      "sector": "wus",
+      "product": "GEOCOLOR",
+      "resolution": "1000x1000",
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-18 Western US GEOCOLOR 1000x1000"
+    },
+    "GOES18.wus.GEOCOLOR.2000x2000": {
+      "satellite": "GOES18",
+      "sector": "wus",
+      "product": "GEOCOLOR",
+      "resolution": "2000x2000",
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-18 Western US GEOCOLOR 2000x2000"
+    },
+    "GOES18.psw.GEOCOLOR.600x600": {
+      "satellite": "GOES18",
+      "sector": "psw",
+      "product": "GEOCOLOR",
+      "resolution": "600x600",
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-18 Pacific Southwest GEOCOLOR 600x600"
+    },
+    "GOES18.psw.GEOCOLOR.1000x1000": {
+      "satellite": "GOES18",
+      "sector": "psw", 
+      "product": "GEOCOLOR",
+      "resolution": "1000x1000",
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-18 Pacific Southwest GEOCOLOR 1000x1000"
+    },
+    "GOES18.pnw.GEOCOLOR.600x600": {
+      "satellite": "GOES18",
+      "sector": "pnw",
+      "product": "GEOCOLOR", 
+      "resolution": "600x600",
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-18 Pacific Northwest GEOCOLOR 600x600"
+    },
+    "GOES18.pnw.GEOCOLOR.1000x1000": {
+      "satellite": "GOES18",
+      "sector": "pnw",
+      "product": "GEOCOLOR",
+      "resolution": "1000x1000", 
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-18 Pacific Northwest GEOCOLOR 1000x1000"
+    },
+    "GOES18.cak.GEOCOLOR.600x600": {
+      "satellite": "GOES18",
+      "sector": "cak",
+      "product": "GEOCOLOR",
+      "resolution": "600x600",
+      "auto_download": false,
+      "status": "available", 
+      "description": "GOES-18 Central Alaska GEOCOLOR 600x600"
+    },
+    "GOES18.sea.GEOCOLOR.600x600": {
+      "satellite": "GOES18",
+      "sector": "sea",
+      "product": "GEOCOLOR",
+      "resolution": "600x600",
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-18 Southeast Alaska GEOCOLOR 600x600"
+    }
+  },
+  "total_discovered": 16,
+  "last_discovery": "2025-07-30T00:55:00Z",
+  "last_updated": "2025-07-30T00:55:00Z"
+}

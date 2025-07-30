@@ -48,23 +48,28 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset }: Video
 
     const video = videoRef.current;
     
-    // Déterminer l'URL de la playlist à utiliser
-    let playlistUrl: string;
-    
+    // Déterminer dynamiquement l'URL de la playlist HLS selon le dataset et la période
+    let playlistUrl: string | null = null;
     console.log('🔍 VideoPlayer Debug Info:');
     console.log('  - selectedDataset:', selectedDataset);
-    console.log('  - selectedDataset?.playlist_url:', selectedDataset?.playlist_url);
     console.log('  - fromDate:', formattedFromDate);
     console.log('  - toDate:', formattedToDate);
-    
-    if (selectedDataset && selectedDataset.playlist_url) {
-      // Utiliser le dataset satellitaire sélectionné
-      playlistUrl = selectedDataset.playlist_url;
-      console.log('🛰️ Using satellite dataset playlist:', playlistUrl);
-    } else {
-      // Utiliser l'ancienne méthode avec les données de test
+
+    if (selectedDataset) {
+      const { satellite, sector, product, resolution } = selectedDataset;
+      if (satellite && sector && product && resolution) {
+        playlistUrl = `/api/playlist?satellite=${encodeURIComponent(satellite)}&sector=${encodeURIComponent(sector)}&product=${encodeURIComponent(product)}&resolution=${encodeURIComponent(resolution)}&from=${formattedFromDate}&to=${formattedToDate}`;
+        console.log('🛰️ Using dataset API playlist:', playlistUrl);
+      } else if (selectedDataset.playlist_url) {
+        // Fallback: utiliser l'URL directe si fournie
+        playlistUrl = selectedDataset.playlist_url;
+        console.log('🛰️ Using direct playlist_url:', playlistUrl);
+      }
+    }
+    // Fallback legacy (aucun dataset sélectionné)
+    if (!playlistUrl) {
       playlistUrl = `/api/playlist?from=${formattedFromDate}&to=${formattedToDate}`;
-      console.log('🎯 Using test data playlist:', playlistUrl);
+      console.log('🎯 Using fallback test data playlist:', playlistUrl);
     }
 
     console.log('🎯 Initializing HLS with:', playlistUrl);

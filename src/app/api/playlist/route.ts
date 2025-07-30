@@ -7,11 +7,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const from = searchParams.get('from');
     const to = searchParams.get('to');
+    const satellite = searchParams.get('satellite');
+    const sector = searchParams.get('sector');
+    const product = searchParams.get('product');
+    const resolution = searchParams.get('resolution');
 
     // Validation des paramètres
-    if (!from || !to) {
+    if (!from || !to || !satellite || !sector || !product || !resolution) {
       return NextResponse.json(
-        { error: 'Paramètres "from" et "to" requis (format: YYYY-MM-DD)' },
+        { error: 'Paramètres "from", "to", "satellite", "sector", "product", "resolution" requis' },
         { status: 400 }
       );
     }
@@ -49,7 +53,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Génération de la playlist
-    const playlist = await generatePlaylist(fromDate, toDate);
+    const playlist = await generatePlaylist(fromDate, toDate, satellite, sector, product, resolution);
 
     // Vérifier si la playlist contient des segments
     if (!playlist.includes('#EXTINF')) {
@@ -76,10 +80,11 @@ export async function GET(request: NextRequest) {
   }
 }
 
-async function generatePlaylist(fromDate: Date, toDate: Date): Promise<string> {
+async function generatePlaylist(fromDate: Date, toDate: Date, satellite: string, sector: string, product: string, resolution: string): Promise<string> {
   const dataRootPath = process.env.DATA_ROOT_PATH || '/home/johann/developpement/earthimagery/public/data';
   const hlsDir = process.env.HLS_DIR || 'hls';
-  
+  const datasetDir = `satellite-${satellite}-${sector}-${product}-${resolution}`;
+
   const segments: string[] = [];
   let maxDuration = 0;
   let sequenceNumber = 0;
@@ -88,7 +93,7 @@ async function generatePlaylist(fromDate: Date, toDate: Date): Promise<string> {
   const currentDate = new Date(fromDate);
   while (currentDate <= toDate) {
     const dateStr = currentDate.toISOString().split('T')[0];
-    const dayHlsPath = path.join(dataRootPath, hlsDir, dateStr);
+    const dayHlsPath = path.join(dataRootPath, hlsDir, datasetDir, dateStr);
     const playlistPath = path.join(dayHlsPath, 'playlist.m3u8');
 
     try {
@@ -115,7 +120,7 @@ async function generatePlaylist(fromDate: Date, toDate: Date): Promise<string> {
             const segmentFile = lines[i + 1].trim();
             if (segmentFile && !segmentFile.startsWith('#')) {
               // Construire l'URL vers la route API HLS
-              const segmentUrl = `/api/hls/${dateStr}/${segmentFile}`;
+              const segmentUrl = `/api/hls/${datasetDir}/${dateStr}/${segmentFile}`;
               segments.push(segmentUrl);
             }
           }
@@ -124,7 +129,7 @@ async function generatePlaylist(fromDate: Date, toDate: Date): Promise<string> {
 
     } catch {
       // Le fichier n'existe pas pour ce jour, continuer
-      console.warn(`Aucune vidéo trouvée pour ${dateStr}`);
+      console.warn(`Aucune vidéo trouvée pour ${datasetDir}/${dateStr}`);
     }
 
     // Jour suivant

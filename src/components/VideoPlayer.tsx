@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useMemo } from 'react';
+import { useState as usePopoverState } from 'react';
 
 interface SatelliteDataset {
   key: string;
@@ -21,6 +22,7 @@ interface VideoPlayerProps {
   selectedDataset?: SatelliteDataset | null;
 }
 
+
 export default function VideoPlayer({ fromDate, toDate, selectedDataset }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<any>(null);
@@ -28,6 +30,7 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset }: Video
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [availablePlaylists, setAvailablePlaylists] = useState<string[]>([]);
+  const [playbackRate, setPlaybackRate] = useState(1);
 
   const formattedFromDate = useMemo(() => fromDate.toISOString().split('T')[0], [fromDate]);
   const formattedToDate = useMemo(() => toDate.toISOString().split('T')[0], [toDate]);
@@ -43,36 +46,27 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset }: Video
     return () => setMounted(false);
   }, []);
 
+  // Appliquer la vitesse de lecture à chaque changement
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.playbackRate = playbackRate;
+    }
+  }, [playbackRate]);
+
   useEffect(() => {
     if (!mounted || !videoRef.current) return;
 
+    // Ne rien faire si les paramètres essentiels ne sont pas définis
+    if (!selectedDataset || !selectedDataset.satellite || !selectedDataset.sector || !selectedDataset.product || !selectedDataset.resolution || !fromDate || !toDate) {
+      console.log('⏸️ Paramètres incomplets, player non initialisé');
+      return;
+    }
+
     const video = videoRef.current;
-    
-    // Déterminer dynamiquement l'URL de la playlist HLS selon le dataset et la période
-    let playlistUrl: string | null = null;
-    console.log('🔍 VideoPlayer Debug Info:');
-    console.log('  - selectedDataset:', selectedDataset);
-    console.log('  - fromDate:', formattedFromDate);
-    console.log('  - toDate:', formattedToDate);
 
-    if (selectedDataset) {
-      const { satellite, sector, product, resolution } = selectedDataset;
-      if (satellite && sector && product && resolution) {
-        playlistUrl = `/api/playlist?satellite=${encodeURIComponent(satellite)}&sector=${encodeURIComponent(sector)}&product=${encodeURIComponent(product)}&resolution=${encodeURIComponent(resolution)}&from=${formattedFromDate}&to=${formattedToDate}`;
-        console.log('🛰️ Using dataset API playlist:', playlistUrl);
-      } else if (selectedDataset.playlist_url) {
-        // Fallback: utiliser l'URL directe si fournie
-        playlistUrl = selectedDataset.playlist_url;
-        console.log('🛰️ Using direct playlist_url:', playlistUrl);
-      }
-    }
-    // Fallback legacy (aucun dataset sélectionné)
-    if (!playlistUrl) {
-      playlistUrl = `/api/playlist?from=${formattedFromDate}&to=${formattedToDate}`;
-      console.log('🎯 Using fallback test data playlist:', playlistUrl);
-    }
-
-    console.log('🎯 Initializing HLS with:', playlistUrl);
+    // Construire l'URL de la playlist HLS
+    const playlistUrl = `/api/playlist?satellite=${encodeURIComponent(selectedDataset.satellite)}&sector=${encodeURIComponent(selectedDataset.sector)}&product=${encodeURIComponent(selectedDataset.product)}&resolution=${encodeURIComponent(selectedDataset.resolution)}&from=${formattedFromDate}&to=${formattedToDate}`;
+    console.log('🛰️ Using dataset API playlist:', playlistUrl);
 
     // Try native HLS first (Safari, iOS)
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
@@ -95,6 +89,9 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset }: Video
       
       video.src = playlistUrl;
       
+      // Appliquer la vitesse de lecture après chargement
+      video.playbackRate = playbackRate;
+
       // Return cleanup function for native HLS
       return () => {
         console.log('🧹 Cleaning up Native HLS');
@@ -133,6 +130,8 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset }: Video
               duration: data.totalduration
             });
             setIsLoading(false);
+            // Appliquer la vitesse de lecture après parsing
+            if (video) video.playbackRate = playbackRate;
           });
 
           hls.on(Hls.Events.LEVEL_LOADED, (event: any, data: any) => {
@@ -219,6 +218,8 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset }: Video
               // If playlist looks valid, load it with HLS.js
               hls.loadSource(playlistUrl);
               hls.attachMedia(video);
+              // Appliquer la vitesse de lecture après attachement
+              if (video) video.playbackRate = playbackRate;
             } catch (err) {
               console.error('❌ Error checking playlist:', err);
               setError('Erreur lors de la vérification de la vidéo');
@@ -234,6 +235,8 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset }: Video
               duration: video.duration,
               dimensions: `${video.videoWidth}x${video.videoHeight}`
             });
+            // Appliquer la vitesse de lecture après chargement des métadonnées
+            video.playbackRate = playbackRate;
           });
 
           video.addEventListener('canplay', () => {
@@ -256,7 +259,7 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset }: Video
         hlsRef.current = null;
       }
     };
-  }, [formattedFromDate, formattedToDate, mounted, fromDate, toDate, selectedDataset]);
+  }, [formattedFromDate, formattedToDate, mounted, fromDate, toDate, selectedDataset, playbackRate]);
 
   if (!mounted) {
     return (
@@ -276,16 +279,22 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset }: Video
 
   return (
     <div className="w-full relative">
-      <video
-        ref={videoRef}
-        controls
-        className="w-full h-96 bg-black rounded-lg"
-        poster="/placeholder-satellite.jpg"
-        muted
-        playsInline
-      >
-        Votre navigateur ne supporte pas la lecture vidéo.
-      </video>
+      <div className="relative">
+        <video
+          ref={videoRef}
+          controls
+          className="w-full h-96 bg-black rounded-lg"
+          poster="/placeholder-satellite.jpg"
+          muted
+          playsInline
+        >
+          Votre navigateur ne supporte pas la lecture vidéo.
+        </video>
+        {/* Bouton jauge minimaliste en haut à droite */}
+        <div className="absolute top-4 right-4 z-20">
+          <SpeedPopover playbackRate={playbackRate} setPlaybackRate={setPlaybackRate} minimal />
+        </div>
+      </div>
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-lg">
           <div className="text-white">Chargement de la vidéo...</div>
@@ -297,6 +306,53 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset }: Video
           : `${fromDate.toLocaleDateString('fr-FR')} - ${toDate.toLocaleDateString('fr-FR')}`
         }
       </div>
+    </div>
+  );
+
+}
+
+// Composant popover pour la sélection de vitesse
+function SpeedPopover({ playbackRate, setPlaybackRate, minimal }: { playbackRate: number, setPlaybackRate: (v: number) => void, minimal?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const rates = [0.1, 0.25, 0.5, 1, 1.5, 2, 5, 10];
+  // Pour fermer le menu si clic ailleurs
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      setOpen(false);
+    };
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [open]);
+  return (
+    <div className="relative pointer-events-auto">
+      <button
+        type="button"
+        aria-label="Vitesse de lecture"
+        className={`flex items-center justify-center w-8 h-8 rounded-full bg-gray-800 hover:bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${open ? 'ring-2 ring-blue-400' : ''}`}
+        onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
+      >
+        {/* Icône jauge/tachymètre SVG minimaliste */}
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+          <path d="M12 21a9 9 0 1 0-9-9" />
+          <path d="M12 3v4" />
+          <path d="M12 12l3-3" />
+          <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute top-10 right-0 bg-gray-900 border border-gray-700 rounded shadow-lg z-50 min-w-[90px]">
+          {rates.map(rate => (
+            <button
+              key={rate}
+              className={`w-full text-left px-4 py-2 text-sm text-white hover:bg-blue-600 ${playbackRate === rate ? 'bg-blue-700 font-bold' : ''}`}
+              onClick={e => { e.stopPropagation(); setPlaybackRate(rate); setOpen(false); }}
+            >
+              {rate}x
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

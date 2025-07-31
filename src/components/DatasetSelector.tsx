@@ -9,8 +9,6 @@ import {
   Box,
   Typography,
   Chip,
-  TreeView,
-  TreeItem,
   Paper,
   Accordion,
   AccordionSummary,
@@ -26,6 +24,7 @@ import {
   Visibility as VisibilityIcon,
   HighQuality as QualityIcon
 } from '@mui/icons-material';
+import PublishedImagesPanel from './PublishedImagesPanel';
 
 interface SatelliteDataset {
   key: string;
@@ -248,7 +247,6 @@ export default function DatasetSelector({ onDatasetSelect, selectedDataset }: Da
                                     variant="outlined"
                                   />
                                 </Box>
-                                
                                 <Box display="flex" alignItems="center" gap={1}>
                                   {dataset.auto_download && (
                                     <Chip size="small" label="Auto" color="secondary" variant="outlined" />
@@ -260,6 +258,15 @@ export default function DatasetSelector({ onDatasetSelect, selectedDataset }: Da
                               </Box>
                             }
                           />
+                          {/* Panneau images publiées */}
+                          <PublishedImagesPanel dataset={{
+                            satellite: dataset.satellite,
+                            sector: dataset.sector,
+                            product: dataset.product,
+                            resolution: dataset.resolution,
+                            source: 'NOAA',
+                            label: `${dataset.satellite} / ${dataset.sector} / ${dataset.product} / ${dataset.resolution}`
+                          }} />
                         </Box>
                       ))}
                     </Box>

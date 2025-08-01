@@ -42,6 +42,7 @@ next-env.d.ts
 
 # EarthImagery data files
 /public/data/
+/public/databkp/
 !/public/data/.gitkeep
 /config/download-tracking.json
 !/config/.gitkeep

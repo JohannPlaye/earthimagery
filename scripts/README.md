@@ -73,7 +73,6 @@ Le fichier `config/download-tracking.json` contient :
 ```
 public/data/
 ├── images/          # Images satellitaires organisées par dataset/date
-├── videos/          # Vidéos MP4 journalières
 ├── hls/            # Playlists et segments HLS pour streaming
 └── logs/           # Logs des opérations
 ```

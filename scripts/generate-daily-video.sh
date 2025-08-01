@@ -29,7 +29,6 @@ if [ -z "$DATASET_KEY" ] || [ -z "$TARGET_DATE" ]; then
 fi
 
 # Création des dossiers si nécessaire
-mkdir -p "$DATA_ROOT_PATH/videos"
 mkdir -p "$DATA_ROOT_PATH/hls"
 mkdir -p "$DATA_ROOT_PATH/logs"
 
@@ -89,80 +88,65 @@ generate_video_for_dataset() {
     log "📊 $image_count images trouvées dans $images_dir"
     
     # Chemins de sortie
-    local video_output="$DATA_ROOT_PATH/videos/$dataset_key-$target_date.mp4"
     local hls_output_dir="$DATA_ROOT_PATH/hls/$dataset_key/$target_date"
     local hls_playlist="$hls_output_dir/playlist.m3u8"
-    
+    local segment_file="$hls_output_dir/segment_000.ts"
     mkdir -p "$hls_output_dir"
-    
+
+    # Nettoyer les anciens segments et playlist
+    rm -f "$hls_output_dir"/*.ts "$hls_playlist"
+
     # Création de la liste d'images triées chronologiquement
     local images_list="/tmp/images-$dataset_key-$target_date.txt"
     find "$images_dir" -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" | sort > "$images_list"
-    
+
     # Vérification du tri
     local first_image=$(head -n1 "$images_list")
     local last_image=$(tail -n1 "$images_list")
     log "🎞️ Première image: $(basename "$first_image")"
     log "🎞️ Dernière image: $(basename "$last_image")"
-    
-    # Génération vidéo MP4
-    log "🔄 Génération MP4..."
+
+    # Génération vidéo MP4 temporaire
+    log "🔄 Génération MP4 temporaire..."
     local temp_video="/tmp/temp-$dataset_key-$target_date.mp4"
-    
-    if ffmpeg -y \
+    if ffmpeg -hide_banner -y \
         -f concat \
         -safe 0 \
         -i <(sed 's/^/file /' "$images_list") \
         -r "$VIDEO_FPS" \
+        -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2,format=yuv420p" \
         -c:v libx264 \
         -crf "$VIDEO_CRF" \
         -preset "$VIDEO_PRESET" \
         -pix_fmt yuv420p \
         -movflags +faststart \
         "$temp_video" &>> "$LOG_FILE"; then
-        
-        # Génération HLS
-        log "🔄 Génération HLS..."
-        if ffmpeg -y \
-            -i "$temp_video" \
-            -c:v libx264 \
-            -preset ultrafast \
-            -pix_fmt yuv420p \
-            -g 4 \
-            -keyint_min 4 \
-            -sc_threshold 0 \
-            -b:v 500k \
-            -maxrate 500k \
-            -bufsize 1000k \
-            -avoid_negative_ts make_zero \
-            -muxdelay 0 \
-            -muxpreload 0 \
-            -start_number 0 \
-            -hls_time "$HLS_SEGMENT_TIME" \
-            -hls_list_size 0 \
-            -hls_segment_filename "$hls_output_dir/segment_%03d.ts" \
-            -f hls \
-            "$hls_playlist" &>> "$LOG_FILE"; then
-            
-            # Finalisation
-            mv "$temp_video" "$video_output"
-            rm -f "$images_list"
-            
-            local video_size=$(du -h "$video_output" | cut -f1)
-            local duration=$(echo "scale=1; $image_count / $VIDEO_FPS" | bc -l)
-            
-            log "✅ Vidéo générée: $video_output ($video_size)"
-            log "🎯 Durée: ${duration}s à ${VIDEO_FPS}fps"
-            log "📺 HLS: $hls_playlist"
-            
+        # Générer un unique segment TS
+        if ffmpeg -y -i "$temp_video" -c copy -f mpegts "$segment_file" &>> "$LOG_FILE"; then
+            log "✅ Segment unique créé: $(basename "$segment_file")"
+            # Générer la playlist HLS qui référence uniquement ce segment
+            local duration_raw=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$segment_file")
+            local duration_int=$(echo "$duration_raw" | awk '{print int($1+0.5)}')
+            local duration_fmt=$(echo "$duration_raw" | awk '{printf "%.3f", $1}')
+            {
+                echo "#EXTM3U"
+                echo "#EXT-X-VERSION:3"
+                echo "#EXT-X-TARGETDURATION:$duration_int"
+                echo "#EXT-X-MEDIA-SEQUENCE:0"
+                echo "#EXTINF:$duration_fmt,"
+                echo "$(basename "$segment_file")"
+                echo "#EXT-X-ENDLIST"
+            } > "$hls_playlist"
+            log "✅ Playlist générée: $hls_playlist"
+            rm -f "$temp_video" "$images_list"
             return 0
         else
-            log "❌ Échec génération HLS"
+            log "❌ Erreur lors de la conversion TS pour le segment du jour ($segment_file)"
             rm -f "$temp_video" "$images_list"
             return 1
         fi
     else
-        log "❌ Échec génération MP4"
+        log "❌ Échec génération MP4 temporaire"
         rm -f "$images_list"
         return 1
     fi

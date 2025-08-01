@@ -22,7 +22,6 @@ echo "📁 Dossier racine des données: $DATA_ROOT_PATH"
 echo "📂 Création de la structure de dossiers..."
 
 mkdir -p "$DATA_ROOT_PATH/$IMAGES_DIR"
-mkdir -p "$DATA_ROOT_PATH/$VIDEOS_DIR"
 mkdir -p "$DATA_ROOT_PATH/$HLS_DIR"
 mkdir -p "$DATA_ROOT_PATH/$LOGS_DIR"
 

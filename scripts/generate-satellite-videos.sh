@@ -26,7 +26,8 @@ generate_satellite_video() {
     local date_str="$5"  # Format: YYYY-MM-DD
     
     local dataset_dir="$SATELLITE_DATA_DIR/$satellite/$sector/$product/$resolution"
-    local output_date_dir="$OUTPUT_DIR/satellite-$satellite-$sector-$product-$resolution/$date_str"
+    local dataset_key="$satellite.$sector.$product.$resolution"
+    local output_date_dir="$OUTPUT_DIR/$dataset_key/$date_str"
     
     log "🎬 Génération vidéo: $satellite/$sector/$product/$resolution pour $date_str"
     

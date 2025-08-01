@@ -83,7 +83,8 @@ export async function GET(request: NextRequest) {
 async function generatePlaylist(fromDate: Date, toDate: Date, satellite: string, sector: string, product: string, resolution: string): Promise<string> {
   const dataRootPath = process.env.DATA_ROOT_PATH || '/home/johann/developpement/earthimagery/public/data';
   const hlsDir = process.env.HLS_DIR || 'hls';
-  const datasetDir = `satellite-${satellite}-${sector}-${product}-${resolution}`;
+  // Use new dot notation for datasetDir: {satellite}.{sector}.{product}.{resolution}
+  const datasetDir = `${satellite}.${sector}.${product}.${resolution}`;
 
   const segments: string[] = [];
   let maxDuration = 0;
@@ -119,7 +120,7 @@ async function generatePlaylist(fromDate: Date, toDate: Date, satellite: string,
           if (i + 1 < lines.length) {
             const segmentFile = lines[i + 1].trim();
             if (segmentFile && !segmentFile.startsWith('#')) {
-              // Construire l'URL vers la route API HLS
+              // Construire l'URL vers la route API HLS (dot notation)
               const segmentUrl = `/api/hls/${datasetDir}/${dateStr}/${segmentFile}`;
               segments.push(segmentUrl);
             }

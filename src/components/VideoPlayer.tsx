@@ -20,6 +20,7 @@ interface VideoPlayerProps {
   fromDate: Date;
   toDate: Date;
   selectedDataset?: SatelliteDataset | null;
+  className?: string;
 }
 
 
@@ -278,12 +279,12 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset }: Video
   }
 
   return (
-    <div className="w-full relative">
-      <div className="relative">
+    <div className={`w-full h-full relative rounded-2xl ${arguments[0].className ?? ''}`}>
+      <div className="relative w-full h-full">
         <video
           ref={videoRef}
           controls
-          className="w-full h-96 bg-black rounded-lg"
+          className="w-full h-full bg-black rounded-lg"
           poster="/placeholder-satellite.jpg"
           muted
           playsInline

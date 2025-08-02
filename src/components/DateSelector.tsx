@@ -14,6 +14,8 @@ interface DateSelectorProps {
   onDateRangeSelect: (from: string, to: string) => void;
   onPreviewInfo: (info: PlaylistInfo) => void;
   isLoading?: boolean;
+  defaultFromDate?: string;
+  defaultToDate?: string;
 }
 
 interface PlaylistInfo {
@@ -26,10 +28,12 @@ interface PlaylistInfo {
 export default function DateSelector({ 
   onDateRangeSelect, 
   onPreviewInfo, 
-  isLoading = false 
+  isLoading = false,
+  defaultFromDate,
+  defaultToDate
 }: DateSelectorProps) {
-  const [fromDate, setFromDate] = useState<Dayjs | null>(null);
-  const [toDate, setToDate] = useState<Dayjs | null>(null);
+  const [fromDate, setFromDate] = useState<Dayjs | null>(defaultFromDate ? dayjs(defaultFromDate) : null);
+  const [toDate, setToDate] = useState<Dayjs | null>(defaultToDate ? dayjs(defaultToDate) : null);
   const [error, setError] = useState<string | null>(null);
   const [previewInfo, setPreviewInfo] = useState<PlaylistInfo | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);

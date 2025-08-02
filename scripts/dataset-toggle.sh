@@ -75,6 +75,26 @@ case "$ACTION" in
             exit 1
         fi
         ;;
+
+        "set-default")
+        echo "🔧 Définition du dataset par défaut: $DATASET_KEY"
+        # Exclusivité : retire le flag default_display de tous les autres datasets
+        if jq -e ".enabled_datasets[\"$DATASET_KEY\"]" "$CONFIG_FILE" >/dev/null 2>&1; then
+            jq --arg key "$DATASET_KEY" '
+              .enabled_datasets |= with_entries(
+                if .key == $key then .value.default_display = true else .value.default_display = false end
+              )' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+            if [ $? -eq 0 ]; then
+                echo "✅ Dataset $DATASET_KEY défini comme affiché par défaut"
+            else
+                echo "❌ Erreur lors de la définition du dataset par défaut"
+                exit 1
+            fi
+        else
+            echo "❌ Dataset non trouvé dans enabled_datasets"
+            exit 1
+        fi
+        ;;
         
     "disable")
         echo "🔧 Désactivation du dataset: $DATASET_KEY"

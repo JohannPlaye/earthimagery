@@ -44,12 +44,11 @@ else
     log $GREEN "✅ Création du dossier images"
 fi
 
-if [ -d "public/data/hls" ]; then
-    rm -rf public/data/hls/*
-    log $GREEN "✅ Nettoyage des playlists HLS existantes"
-else
+if [ ! -d "public/data/hls" ]; then
     mkdir -p public/data/hls
     log $GREEN "✅ Création du dossier HLS"
+else
+    log $YELLOW "📁 Conservation des playlists HLS existantes"
 fi
 echo
 
@@ -90,7 +89,7 @@ echo
 log $BLUE "🎬 Phase 3/5: Génération des vidéos (24fps standard)..."
 log $YELLOW "Configuration: 24fps pour lecture fluide, indépendamment du nombre d'images source"
 
-./scripts/generate-satellite-videos.sh
+./scripts/generate-satellite-videos.sh auto
 
 if [ $? -eq 0 ]; then
     log $GREEN "✅ Génération vidéo terminée avec succès"

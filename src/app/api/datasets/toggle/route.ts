@@ -11,7 +11,7 @@ const DATASET_TOGGLE_SCRIPT = path.join(process.cwd(), 'scripts', 'dataset-toggl
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { satellite, sector, product, resolution, enabled, auto_download, download_only } = body;
+    const { satellite, sector, product, resolution, enabled, auto_download, download_only, setDefault } = body;
 
     // Validation des paramètres
     if (!satellite || !sector || !product || !resolution) {
@@ -19,6 +19,51 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'Paramètres manquants' },
         { status: 400 }
       );
+    }
+
+    if (setDefault) {
+      // Exclusivité : retire le flag default_display de tous les autres datasets
+      const configPath = path.join(process.cwd(), 'config', 'datasets-status.json');
+      const datasetKey = `${satellite}.${sector}.${product}.${resolution}`;
+      const fs = require('fs');
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      
+      // S'assurer que le dataset est bien dans enabled_datasets
+      if (!config.enabled_datasets[datasetKey]) {
+        // Si absent, l'activer avec les paramètres par défaut
+        config.enabled_datasets[datasetKey] = {
+          satellite, sector, product, resolution, enabled: true, auto_download: auto_download || false, default_display: true
+        };
+      } else {
+        // Si déjà présent, mettre à jour ses paramètres
+        config.enabled_datasets[datasetKey].enabled = true;
+        config.enabled_datasets[datasetKey].default_display = true;
+        if (auto_download !== undefined) {
+          config.enabled_datasets[datasetKey].auto_download = auto_download;
+        }
+      }
+      
+      // Mettre default_display à false pour tous les autres datasets (enabled ET disabled)
+      for (const key of Object.keys(config.enabled_datasets)) {
+        if (key !== datasetKey) {
+          config.enabled_datasets[key].default_display = false;
+        }
+      }
+      // Nettoyer aussi les datasets désactivés
+      if (config.disabled_datasets) {
+        for (const key of Object.keys(config.disabled_datasets)) {
+          config.disabled_datasets[key].default_display = false;
+        }
+      }
+      
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+      
+      console.log(`✅ Dataset ${datasetKey} défini comme affiché par défaut`);
+      return NextResponse.json({ 
+        success: true, 
+        message: `Dataset ${datasetKey} défini comme affiché par défaut.`,
+        default_display: true
+      });
     }
 
     if (download_only) {
@@ -90,14 +135,10 @@ export async function POST(request: NextRequest) {
         message: `Dataset ${satellite}.${sector}.${product}.${resolution} désactivé`
       });
     }
-
   } catch (error) {
-    console.error('Erreur lors de la modification du dataset:', error);
+    console.error('Erreur dans le traitement de la requête:', error);
     return NextResponse.json(
-      { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Erreur lors de la modification'
-      },
+      { success: false, error: 'Erreur interne du serveur' },
       { status: 500 }
     );
   }

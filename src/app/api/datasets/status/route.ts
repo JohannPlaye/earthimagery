@@ -10,6 +10,7 @@ interface Dataset {
   resolution: string;
   enabled: boolean;
   auto_download: boolean;
+  default_display?: boolean;
   last_download?: string;
   status: 'available' | 'downloaded' | 'processing' | 'error' | 'discovered';
   total_images?: number;
@@ -26,6 +27,7 @@ const CONFIG_FILE = path.join(process.cwd(), 'config', 'datasets-status.json');
 export async function GET() {
   try {
     const datasets: Dataset[] = [];
+    const processedKeys = new Set<string>(); // Pour éviter les doublons
     
     // Lire la configuration des datasets
     let configData: any = {};
@@ -48,6 +50,9 @@ export async function GET() {
     // Traiter les datasets activés
     if (configData.enabled_datasets) {
       for (const [datasetKey, datasetConfig] of Object.entries(configData.enabled_datasets)) {
+        if (processedKeys.has(datasetKey)) continue; // Éviter les doublons
+        processedKeys.add(datasetKey);
+        
         const config = datasetConfig as any;
         const trackingInfo = trackingData.tracking?.[datasetKey] || {};
         
@@ -59,6 +64,7 @@ export async function GET() {
           resolution: config.resolution || '',
           enabled: true,
           auto_download: config.auto_download || false,
+          default_display: config.default_display || false,
           last_download: trackingInfo.last_download || config.re_enabled_date,
           status: trackingInfo.total_images_downloaded > 0 ? 'downloaded' : 'available',
           total_images: trackingInfo.total_images_downloaded || 0,
@@ -72,6 +78,9 @@ export async function GET() {
     // Traiter les datasets désactivés
     if (configData.disabled_datasets) {
       for (const [datasetKey, datasetConfig] of Object.entries(configData.disabled_datasets)) {
+        if (processedKeys.has(datasetKey)) continue; // Éviter les doublons
+        processedKeys.add(datasetKey);
+        
         const config = datasetConfig as any;
         const trackingInfo = trackingData.tracking?.[datasetKey] || {};
         
@@ -91,6 +100,7 @@ export async function GET() {
           resolution: config.resolution || '',
           enabled: false,
           auto_download: config.auto_download || false,
+          default_display: config.default_display || false,
           last_download: trackingInfo.last_download,
           status: status,
           total_images: trackingInfo.total_images_downloaded || 0,
@@ -105,6 +115,9 @@ export async function GET() {
     // Traiter les datasets découverts mais non activés
     if (configData.discovered_datasets) {
       for (const [datasetKey, datasetConfig] of Object.entries(configData.discovered_datasets)) {
+        if (processedKeys.has(datasetKey)) continue; // Éviter les doublons
+        processedKeys.add(datasetKey);
+        
         const config = datasetConfig as any;
         
         const dataset: Dataset = {
@@ -128,6 +141,9 @@ export async function GET() {
     // Si aucune configuration n'est trouvée, utiliser les données du tracking
     if (datasets.length === 0 && trackingData.tracking) {
       for (const [datasetKey, datasetInfo] of Object.entries(trackingData.tracking)) {
+        if (processedKeys.has(datasetKey)) continue; // Éviter les doublons
+        processedKeys.add(datasetKey);
+        
         const info = datasetInfo as any;
         const datasetConfig = info.dataset_info || {};
         

@@ -38,6 +38,7 @@ interface Dataset {
   last_download?: string;
   status: 'available' | 'downloaded' | 'processing' | 'error';
   file_size?: number;
+  default_display?: boolean;
 }
 
 interface DatasetsByCategory {
@@ -50,6 +51,7 @@ interface DatasetsByCategory {
 
 export default function DatasetManager() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
+  const [defaultDisplayKey, setDefaultDisplayKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +66,9 @@ export default function DatasetManager() {
       
       const data = await response.json();
       setDatasets(data.datasets || []);
+      // Trouver le dataset par défaut
+      const defaultDs = (data.datasets || []).find((ds: Dataset) => ds.default_display);
+      setDefaultDisplayKey(defaultDs ? defaultDs.key : null);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur inconnue');
@@ -75,8 +80,16 @@ export default function DatasetManager() {
   // Activer/désactiver un dataset
   const toggleDataset = async (datasetKey: string, enabled: boolean, autoDownload = false) => {
     try {
-      const [satellite, sector, product, resolution] = datasetKey.split('.');
+      // Empêcher de désactiver un dataset qui est par défaut
+      if (!enabled) {
+        const currentDataset = datasets.find(d => d.key === datasetKey);
+        if (currentDataset?.default_display) {
+          setError('Impossible de désactiver l\'affichage d\'un dataset défini par défaut. Sélectionnez d\'abord un autre dataset comme défaut.');
+          return;
+        }
+      }
       
+      const [satellite, sector, product, resolution] = datasetKey.split('.');
       const response = await fetch('/api/datasets/toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -89,12 +102,28 @@ export default function DatasetManager() {
           auto_download: autoDownload
         })
       });
-
       if (!response.ok) throw new Error('Erreur lors de la mise à jour');
-      
       await loadDatasets();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur de mise à jour');
+    }
+  };
+
+  // Sélectionner le dataset par défaut
+  const setDefaultDataset = async (datasetKey: string) => {
+    try {
+      const [satellite, sector, product, resolution] = datasetKey.split('.');
+      // Appel API pour activer ET définir le dataset par défaut
+      const response = await fetch('/api/datasets/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ satellite, sector, product, resolution, enabled: true, setDefault: true })
+      });
+      if (!response.ok) throw new Error('Erreur lors de la mise à jour du dataset par défaut');
+      // On attend la réponse et recharge l'état à partir du backend
+      await loadDatasets();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur inconnue');
     }
   };
 
@@ -362,11 +391,28 @@ export default function DatasetManager() {
                                     checked={dataset.enabled}
                                     onChange={(e) => toggleDataset(dataset.key, e.target.checked, dataset.auto_download)}
                                     size="small"
+                                    disabled={!!dataset.default_display} // Empêcher de désactiver si par défaut
                                   />
                                 }
                                 label={<Typography variant="caption">Afficher</Typography>}
                                 sx={{ m: 0 }}
                               />
+                              {/* Bouton Par défaut visible seulement si le dataset est affiché */}
+                              {dataset.enabled && (
+                                <FormControlLabel
+                                  control={
+                                    <input
+                                      type="radio"
+                                      name="defaultDisplay"
+                                      checked={!!dataset.default_display}
+                                      onChange={() => setDefaultDataset(dataset.key)}
+                                      style={{ marginRight: 4 }}
+                                    />
+                                  }
+                                  label={<Typography variant="caption">Par défaut</Typography>}
+                                  sx={{ m: 0 }}
+                                />
+                              )}
                               <FormControlLabel
                                 control={
                                   <Switch

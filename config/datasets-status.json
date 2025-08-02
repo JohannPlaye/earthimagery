@@ -1,22 +1,5 @@
 {
   "enabled_datasets": {
-    "GOES18.hi.GEOCOLOR.600x600": {
-      "auto_download": true,
-      "description": "GOES-18 Hawaii GEOCOLOR 600x600",
-      "satellite": "GOES18",
-      "sector": "hi",
-      "product": "GEOCOLOR",
-      "resolution": "600x600"
-    },
-    "GOES19.CONUS.GEOCOLOR.625x375": {
-      "satellite": "GOES19",
-      "sector": "CONUS",
-      "product": "GEOCOLOR",
-      "resolution": "625x375",
-      "auto_download": true,
-      "status": "available",
-      "description": "GOES-19 CONUS GEOCOLOR 625x375 (Low Resolution)"
-    },
     "GOES19.CONUS.GEOCOLOR.2500x1500": {
       "satellite": "GOES19",
       "sector": "CONUS",
@@ -24,7 +7,37 @@
       "resolution": "2500x1500",
       "auto_download": true,
       "status": "available",
-      "description": "GOES-19 CONUS GEOCOLOR 2500x1500 (High Resolution)"
+      "description": "GOES-19 CONUS GEOCOLOR 2500x1500 (High Resolution)",
+      "default_display": false,
+      "enabled": true
+    },
+    "GOES18.hi.GEOCOLOR.600x600": {
+      "auto_download": true,
+      "description": "GOES-18 Hawaii GEOCOLOR 600x600",
+      "satellite": "GOES18",
+      "sector": "hi",
+      "product": "GEOCOLOR",
+      "resolution": "600x600",
+      "default_display": true,
+      "enabled": true
+    },
+    "GOES19.CONUS.GEOCOLOR.625x375": {
+      "satellite": "GOES19",
+      "sector": "CONUS",
+      "product": "GEOCOLOR",
+      "resolution": "625x375",
+      "enabled": true,
+      "auto_download": true,
+      "default_display": false
+    },
+    "GOES18.wus.GEOCOLOR.1000x1000": {
+      "satellite": "GOES18",
+      "sector": "wus",
+      "product": "GEOCOLOR",
+      "resolution": "1000x1000",
+      "auto_download": true,
+      "status": "available",
+      "description": "GOES-18 Western US GEOCOLOR 1000x1000"
     }
   },
   "disabled_datasets": {
@@ -35,7 +48,8 @@
       "sector": "fd",
       "product": "GEOCOLOR",
       "resolution": "1808x1808",
-      "disabled_reason": "GOES16 satellite appears to be inactive or decommissioned"
+      "disabled_reason": "GOES16 satellite appears to be inactive or decommissioned",
+      "default_display": false
     },
     "GOES17.psw.GEOCOLOR.1000x1000": {
       "auto_download": false,
@@ -44,32 +58,8 @@
       "sector": "psw",
       "product": "GEOCOLOR",
       "resolution": "1000x1000",
-      "disabled_reason": "GOES17 satellite appears to be inactive or decommissioned"
-    },
-    "GOES19.CONUS.GEOCOLOR.1250x750": {
-      "auto_download": false,
-      "description": "GOES-19 CONUS GEOCOLOR 1250x750",
-      "satellite": "GOES19",
-      "sector": "CONUS",
-      "product": "GEOCOLOR",
-      "resolution": "1250x750"
-    },
-    "GOES18.CONUS.GEOCOLOR.1250x750": {
-      "auto_download": false,
-      "description": "GOES-18 CONUS GEOCOLOR 1250x750",
-      "satellite": "GOES18",
-      "sector": "CONUS",
-      "product": "GEOCOLOR",
-      "resolution": "1250x750"
-    },
-    "GOES18.CONUS.GEOCOLOR.10000x6000": {
-      "satellite": "GOES18",
-      "sector": "CONUS",
-      "product": "GEOCOLOR",
-      "resolution": "10000x6000",
-      "auto_download": false,
-      "status": "available",
-      "description": "GOES-18 CONUS GEOCOLOR 10000x6000 (Ultra High Resolution)"
+      "disabled_reason": "GOES17 satellite appears to be inactive or decommissioned",
+      "default_display": false
     },
     "GOES19.CONUS.GEOCOLOR.10000x6000": {
       "satellite": "GOES19",
@@ -78,16 +68,64 @@
       "resolution": "10000x6000",
       "auto_download": false,
       "status": "available",
-      "description": "GOES-19 CONUS GEOCOLOR 10000x6000 (Ultra High Resolution)"
+      "description": "GOES-19 CONUS GEOCOLOR 10000x6000 (Ultra High Resolution)",
+      "default_display": false
     },
     "GOES18.FD.GEOCOLOR.1808x1808": {
       "satellite": "GOES18",
       "sector": "FD",
       "product": "GEOCOLOR",
       "resolution": "1808x1808",
+      "enabled": true,
+      "auto_download": false,
+      "default_display": false
+    },
+    "GOES18.CONUS.GEOCOLOR.2500x1500": {
+      "satellite": "GOES18",
+      "sector": "CONUS",
+      "product": "GEOCOLOR",
+      "resolution": "2500x1500",
       "auto_download": false,
       "status": "available",
-      "description": "GOES-18 Full Disk GEOCOLOR 1808x1808 (Standard Resolution)"
+      "description": "GOES-18 CONUS GEOCOLOR 2500x1500 (High Resolution)",
+      "default_display": false
+    },
+    "GOES18.CONUS.GEOCOLOR.1250x750": {
+      "auto_download": false,
+      "description": "GOES-18 CONUS GEOCOLOR 1250x750",
+      "satellite": "GOES18",
+      "sector": "CONUS",
+      "product": "GEOCOLOR",
+      "resolution": "1250x750",
+      "default_display": false
+    },
+    "GOES18.CONUS.GEOCOLOR.10000x6000": {
+      "satellite": "GOES18",
+      "sector": "CONUS",
+      "product": "GEOCOLOR",
+      "resolution": "10000x6000",
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-18 CONUS GEOCOLOR 10000x6000 (Ultra High Resolution)",
+      "default_display": false
+    },
+    "GOES18.FD.GEOCOLOR.10848x10848": {
+      "satellite": "GOES18",
+      "sector": "FD",
+      "product": "GEOCOLOR",
+      "resolution": "10848x10848",
+      "enabled": true,
+      "auto_download": false,
+      "default_display": false
+    },
+    "GOES19.CONUS.GEOCOLOR.1250x750": {
+      "auto_download": false,
+      "description": "GOES-19 CONUS GEOCOLOR 1250x750",
+      "satellite": "GOES19",
+      "sector": "CONUS",
+      "product": "GEOCOLOR",
+      "resolution": "1250x750",
+      "default_display": false
     }
   },
   "discovered_datasets": {
@@ -118,15 +156,6 @@
       "status": "available",
       "description": "GOES-19 Full Disk GEOCOLOR 1808x1808 (Standard Resolution)"
     },
-    "GOES18.CONUS.GEOCOLOR.2500x1500": {
-      "satellite": "GOES18",
-      "sector": "CONUS",
-      "product": "GEOCOLOR",
-      "resolution": "2500x1500",
-      "auto_download": false,
-      "status": "available",
-      "description": "GOES-18 CONUS GEOCOLOR 2500x1500 (High Resolution)"
-    },
     "GOES18.FD.GEOCOLOR.10848x10848": {
       "satellite": "GOES18",
       "sector": "FD",
@@ -135,15 +164,6 @@
       "auto_download": false,
       "status": "available",
       "description": "GOES-18 Full Disk GEOCOLOR 10848x10848 (Ultra High Resolution)"
-    },
-    "GOES18.wus.GEOCOLOR.1000x1000": {
-      "satellite": "GOES18",
-      "sector": "wus",
-      "product": "GEOCOLOR",
-      "resolution": "1000x1000",
-      "auto_download": false,
-      "status": "available",
-      "description": "GOES-18 Western US GEOCOLOR 1000x1000"
     },
     "GOES18.wus.GEOCOLOR.2000x2000": {
       "satellite": "GOES18",
@@ -212,5 +232,5 @@
   "total_discovered": 18,
   "last_discovery": "2025-07-30T01:00:00Z",
   "last_updated": "2025-07-30T01:00:00Z",
-  "last_update": "2025-07-31T00:39:08+02:00"
+  "last_update": "2025-08-02T01:21:25+02:00"
 }

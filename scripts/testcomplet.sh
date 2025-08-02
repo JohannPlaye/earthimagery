@@ -87,24 +87,67 @@ check_dependencies() {
 # =============================================================================
 
 detect_days_to_process() {
-    log "INFO" "🔎 PHASE 1: Détection des jours à traiter (fragments/playlists manquants)"
-    DAYS_TO_PROCESS=()
+    log "INFO" "🔎 PHASE 1: Détection optimisée des jours à traiter par dataset"
+    
+    # Variables globales pour stocker les résultats
+    declare -gA DATASET_DAYS_TO_PROCESS  # Associative array: dataset_key -> "jour1 jour2 jour3"
+    declare -ga ALL_DAYS_TO_PROCESS      # Array de tous les jours uniques à traiter
+    
     local today=$(date +%Y-%m-%d)
     local yesterday=$(date -d "yesterday" +%Y-%m-%d)
-    for i in {0..9}; do
-        local day=$(date -d "$today -$i day" +%Y-%m-%d)
-        local has_playlist=$(find "$DATA_DIR/hls" -type f -path "*/$day/playlist.m3u8" | grep -q . && echo 1 || echo 0)
-        local has_segments=$(find "$DATA_DIR/hls" -type f -path "*/$day/*.ts" | grep -q . && echo 1 || echo 0)
-        if [ "$has_playlist" -eq 0 ] || [ "$has_segments" -eq 0 ]; then
-            DAYS_TO_PROCESS+=("$day")
-        fi
+    
+    # Récupérer la liste des datasets actifs
+    local datasets=($(jq -r '[.enabled_datasets // {} | to_entries[]] | .[] | select(.value.auto_download == true) | .key' "$CONFIG_DIR/datasets-status.json"))
+    
+    log "INFO" "Analyse de ${#datasets[@]} dataset(s) actif(s) sur les 10 derniers jours..."
+    
+    for dataset_key in "${datasets[@]}"; do
+        # Le dataset_key correspond déjà au nom de dossier HLS (garder les points)
+        local dataset_path="$dataset_key"
+        local days_for_dataset=()
+        
+        # Analyser les 10 derniers jours pour ce dataset spécifique
+        for i in {0..9}; do
+            local day=$(date -d "$today -$i day" +%Y-%m-%d)
+            local hls_dataset_dir="$DATA_DIR/hls/$dataset_path/$day"
+            
+            # Vérifier si ce dataset a une playlist et des segments pour ce jour
+            local has_playlist=0
+            local has_segments=0
+            
+            if [ -f "$hls_dataset_dir/playlist.m3u8" ]; then
+                has_playlist=1
+            fi
+            
+            if [ -n "$(find "$hls_dataset_dir" -name "*.ts" -type f 2>/dev/null | head -1)" ]; then
+                has_segments=1
+            fi
+            
+            # Si manquant, ajouter ce jour pour ce dataset
+            if [ "$has_playlist" -eq 0 ] || [ "$has_segments" -eq 0 ]; then
+                days_for_dataset+=("$day")
+            fi
+        done
+        
+        # Toujours inclure aujourd'hui et hier pour tous les datasets (politique de fraîcheur)
+        [[ ! " ${days_for_dataset[@]} " =~ " $today " ]] && days_for_dataset+=("$today")
+        [[ ! " ${days_for_dataset[@]} " =~ " $yesterday " ]] && days_for_dataset+=("$yesterday")
+        
+        # Stocker les jours pour ce dataset (triés et uniques)
+        DATASET_DAYS_TO_PROCESS["$dataset_key"]=$(printf "%s\n" "${days_for_dataset[@]}" | sort -u | tr '\n' ' ')
+        
+        # Ajouter à la liste globale de tous les jours
+        ALL_DAYS_TO_PROCESS+=(${days_for_dataset[@]})
+        
+        local day_count=${#days_for_dataset[@]}
+        log "INFO" "  📊 $dataset_key: $day_count jour(s) à traiter"
     done
-    # Toujours inclure aujourd'hui et la veille (même s'ils sont complets)
-    [[ ! " ${DAYS_TO_PROCESS[@]} " =~ " $today " ]] && DAYS_TO_PROCESS+=("$today")
-    [[ ! " ${DAYS_TO_PROCESS[@]} " =~ " $yesterday " ]] && DAYS_TO_PROCESS+=("$yesterday")
-    # Unicité et tri
-    DAYS_TO_PROCESS=($(printf "%s\n" "${DAYS_TO_PROCESS[@]}" | sort -u))
-    log "INFO" "Jours à traiter: ${DAYS_TO_PROCESS[*]}"
+    
+    # Créer la liste unique et triée de tous les jours
+    ALL_DAYS_TO_PROCESS=($(printf "%s\n" "${ALL_DAYS_TO_PROCESS[@]}" | sort -u))
+    
+    log "INFO" "🎯 Résumé: ${#ALL_DAYS_TO_PROCESS[@]} jour(s) unique(s) à traiter au total"
+    log "INFO" "Jours concernés: ${ALL_DAYS_TO_PROCESS[*]}"
 }
 
 # =============================================================================
@@ -113,7 +156,7 @@ detect_days_to_process() {
 
 
 download_active_datasets() {
-    log "INFO" "📥 PHASE 2: Téléchargement ciblé pour les jours à traiter"
+    log "INFO" "📥 PHASE 2: Téléchargement optimisé par dataset"
     # Vérifier que les scripts de production existent
     local required_scripts=(
         "$SCRIPT_DIR/smart-fetch.sh"
@@ -126,47 +169,70 @@ download_active_datasets() {
         fi
     done
     log "INFO" "✅ Tous les scripts de production sont disponibles"
+    
     # Récupérer la liste des datasets actifs (auto_download: true)
     local datasets=($(jq -r '[.enabled_datasets // {} | to_entries[]] | .[] | select(.value.auto_download == true) | .key' "$CONFIG_DIR/datasets-status.json"))
     if [ ${#datasets[@]} -eq 0 ]; then
         log "WARN" "Aucun dataset actif trouvé pour le téléchargement."
         return 1
     fi
-    for day in "${DAYS_TO_PROCESS[@]}"; do
-        local smartfetch_failed=0
-        for dataset_key in "${datasets[@]}"; do
+    
+    local total_downloads=0
+    local failed_downloads=0
+    
+    # Télécharger seulement les jours nécessaires pour chaque dataset
+    for dataset_key in "${datasets[@]}"; do
+        local days_str="${DATASET_DAYS_TO_PROCESS[$dataset_key]}"
+        if [ -z "$days_str" ]; then
+            log "INFO" "📊 $dataset_key: Aucun jour à télécharger (déjà complet)"
+            continue
+        fi
+        
+        # Convertir la chaîne en array
+        local days_array=($days_str)
+        log "INFO" "📥 $dataset_key: ${#days_array[@]} jour(s) à télécharger"
+        
+        for day in "${days_array[@]}"; do
             # Conversion dataset_key (points) -> chemin relatif (slashs)
             local dataset_path=$(echo "$dataset_key" | tr '.' '/')
             local images_dir="$DATA_DIR/$dataset_path/$day"
+            
             # Suppression des images corrompues (taille nulle) avant téléchargement
-            local corrupted_count=$(find "$images_dir" -type f \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" \) -size 0 -delete -print | wc -l)
+            local corrupted_count=$(find "$images_dir" -type f \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" \) -size 0 -delete -print 2>/dev/null | wc -l)
             if [ "$corrupted_count" -gt 0 ]; then
-                log "WARN" "    🧹 $corrupted_count image(s) corrompue(s) supprimée(s) dans $images_dir (avant téléchargement)"
+                log "WARN" "    🧹 $corrupted_count image(s) corrompue(s) supprimée(s) dans $images_dir"
             fi
-            log "INFO" "📥 Téléchargement des images pour $dataset_key le $day"
+            
+            log "INFO" "  📥 Téléchargement $dataset_key pour $day"
+            total_downloads=$((total_downloads + 1))
+            
             if bash "$SCRIPT_DIR/smart-fetch.sh" dataset "$dataset_key" "$day" "$day" 2>&1 | tee -a "$LOG_FILE"; then
-                log "INFO" "✅ Images téléchargées pour $dataset_key le $day"
+                log "INFO" "    ✅ Images téléchargées pour $dataset_key le $day"
             else
-                log "WARN" "⚠️ smart-fetch.sh a échoué pour $dataset_key le $day"
-                smartfetch_failed=1
+                log "WARN" "    ⚠️ smart-fetch.sh a échoué pour $dataset_key le $day"
+                failed_downloads=$((failed_downloads + 1))
+                
+                # Tentative de récupération avec generate-historical-data
+                log "INFO" "    ↪️ Tentative de génération historique pour $dataset_key le $day"
+                if bash "$SCRIPT_DIR/generate-historical-data.sh" "$day" "$day" 2>&1 | tee -a "$LOG_FILE"; then
+                    log "INFO" "    ✅ generate-historical-data.sh réussi pour $day"
+                else
+                    log "WARN" "    ❌ generate-historical-data.sh a aussi échoué pour $day"
+                fi
             fi
         done
-        if [ "$smartfetch_failed" -eq 1 ]; then
-            log "INFO" "↪️ Tentative de génération de profondeur temporelle pour $day (au moins un dataset en échec)"
-            if bash "$SCRIPT_DIR/generate-historical-data.sh" "$day" "$day" 2>&1 | tee -a "$LOG_FILE"; then
-                log "INFO" "✅ generate-historical-data.sh terminé pour $day"
-            else
-                log "ERROR" "❌ Échec du téléchargement pour au moins un dataset le $day"
-            fi
-        fi
     done
+    
+    # Résumé des téléchargements
+    log "INFO" "📊 Résumé téléchargements: $total_downloads tentative(s), $failed_downloads échec(s)"
+    
     # Vérifier que des données ont été téléchargées
     local image_count=$(find "$DATA_DIR" -name "*.jpg" -type f | wc -l)
-    log "INFO" "📊 Images téléchargées: $image_count"
+    log "INFO" "📊 Images total dans le système: $image_count"
     if [ "$image_count" -eq 0 ]; then
-        log "WARN" "⚠️ Aucune image téléchargée"
+        log "WARN" "⚠️ Aucune image dans le système"
     fi
-    log "INFO" "✅ Phase de téléchargement terminée"
+    log "INFO" "✅ Phase de téléchargement optimisée terminée"
 }
 
 # =============================================================================
@@ -175,41 +241,69 @@ download_active_datasets() {
 
 
 generate_daily_videos() {
-    log "INFO" "🎬 PHASE 3: Génération vidéo ciblée pour les jours à traiter"
+    log "INFO" "🎬 PHASE 3: Génération vidéo optimisée par dataset"
     if [ ! -f "$SCRIPT_DIR/generate-daily-video.sh" ]; then
         log "ERROR" "Script de production manquant: generate-daily-video.sh"
         exit 1
     fi
+    
     local image_count=$(find "$DATA_DIR" -name "*.jpg" -type f | wc -l)
     if [ "$image_count" -eq 0 ]; then
         log "WARN" "Aucune image trouvée pour générer des vidéos"
         return 0
     fi
-    # Récupérer la liste des datasets actifs (comme pour le téléchargement)
+    
+    # Récupérer la liste des datasets actifs
     local datasets=($(jq -r '[.enabled_datasets // {} | to_entries[]] | .[] | select(.value.auto_download == true) | .key' "$CONFIG_DIR/datasets-status.json"))
-    for day in "${DAYS_TO_PROCESS[@]}"; do
-        log "INFO" "  🎬 Génération vidéo et playlist pour $day"
-        for dataset_key in "${datasets[@]}"; do
+    
+    local total_generations=0
+    local successful_generations=0
+    
+    # Générer les vidéos seulement pour les couples dataset+jour nécessaires
+    for dataset_key in "${datasets[@]}"; do
+        local days_str="${DATASET_DAYS_TO_PROCESS[$dataset_key]}"
+        if [ -z "$days_str" ]; then
+            log "INFO" "📊 $dataset_key: Aucune vidéo à générer (déjà complet)"
+            continue
+        fi
+        
+        # Convertir la chaîne en array
+        local days_array=($days_str)
+        log "INFO" "🎬 $dataset_key: ${#days_array[@]} jour(s) à traiter"
+        
+        for day in "${days_array[@]}"; do
             # Conversion dataset_key (points) -> chemin relatif (slashs)
             local dataset_path=$(echo "$dataset_key" | tr '.' '/')
             local images_dir="$DATA_DIR/$dataset_path/$day"
+            
             # Suppression des images corrompues (taille nulle)
-            local corrupted_count=$(find "$images_dir" -type f \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" \) -size 0 -delete -print | wc -l)
+            local corrupted_count=$(find "$images_dir" -type f \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" \) -size 0 -delete -print 2>/dev/null | wc -l)
             if [ "$corrupted_count" -gt 0 ]; then
                 log "WARN" "    🧹 $corrupted_count image(s) corrompue(s) supprimée(s) dans $images_dir"
             fi
+            
             local img_count=$(find "$images_dir" -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" -type f 2>/dev/null | wc -l)
             if [ "$img_count" -eq 0 ]; then
-                log "INFO" "    ⏩ Aucune image pour $dataset_key le $day, génération vidéo sautée."
+                log "INFO" "    ⏩ Aucune image pour $dataset_key le $day, génération sautée"
                 continue
             fi
-            log "INFO" "    📹 $dataset_key pour $day (chemin: $images_dir)"
-            bash "$SCRIPT_DIR/generate-daily-video.sh" "$dataset_key" "$day" >> "$LOG_FILE" 2>&1 || {
-                log "WARN" "Échec génération vidéo pour $dataset_key le $day (chemin: $images_dir)"
-            }
+            
+            log "INFO" "  📹 Génération $dataset_key pour $day ($img_count images)"
+            total_generations=$((total_generations + 1))
+            
+            if bash "$SCRIPT_DIR/generate-daily-video.sh" "$dataset_key" "$day" >> "$LOG_FILE" 2>&1; then
+                log "INFO" "    ✅ Vidéo générée avec succès pour $dataset_key le $day"
+                successful_generations=$((successful_generations + 1))
+            else
+                log "WARN" "    ❌ Échec génération vidéo pour $dataset_key le $day"
+            fi
         done
     done
-    # Nouveau compteur : nombre de couples segment_000.ts + playlist.m3u8
+    
+    # Comptage final optimisé
+    log "INFO" "📊 Résumé génération: $successful_generations/$total_generations vidéos générées avec succès"
+    
+    # Compteur global : nombre de couples segment_000.ts + playlist.m3u8
     local hls_dirs=$(find "$DATA_DIR/hls" -type d)
     local video_count=0
     for dir in $hls_dirs; do
@@ -331,7 +425,7 @@ main() {
     # Compteur strictement local : nombre de couples HLS générés dans cette exécution
     local local_video_count=0
     local datasets=($(jq -r '[.enabled_datasets // {} | to_entries[]] | .[] | select(.value.auto_download == true) | .key' "$CONFIG_DIR/datasets-status.json"))
-    for day in "${DAYS_TO_PROCESS[@]}"; do
+    for day in "${ALL_DAYS_TO_PROCESS[@]}"; do
         for dataset_key in "${datasets[@]}"; do
             local hls_dir="$DATA_DIR/hls/$dataset_key/$day"
             if [ -f "$hls_dir/segment_000.ts" ] && [ -f "$hls_dir/playlist.m3u8" ]; then
@@ -340,7 +434,7 @@ main() {
         done
     done
     log "INFO" "📊 Couples HLS générés dans cette exécution: $local_video_count"
-    generate_report "${DAYS_TO_PROCESS[@]}"
+    generate_report "${ALL_DAYS_TO_PROCESS[@]}"
     # Suppression des images sauf aujourd'hui et la veille
     local today=$(date +%Y-%m-%d)
     local yesterday=$(date -d "yesterday" +%Y-%m-%d)

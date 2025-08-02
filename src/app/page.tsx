@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import DateSelector from '@/components/DateSelector';
 import VideoPlayer from '@/components/VideoPlayer';
 import DatasetManager from '@/components/DatasetManager';
@@ -23,14 +23,23 @@ interface SatelliteDataset {
   resolution: string;
   enabled: boolean;
   auto_download: boolean;
+  default_display?: boolean;
   status: 'available' | 'downloaded' | 'processing' | 'error';
   playlist_url?: string;
   file_size?: number;
 }
 
 export default function Home() {
-  const [selectedFromDate, setSelectedFromDate] = useState<Date>(new Date('2025-07-22'));
-  const [selectedToDate, setSelectedToDate] = useState<Date>(new Date('2025-07-22'));
+  // Par défaut : période = veille et jour courant
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  // Format YYYY-MM-DD pour cohérence
+  function toDateOnly(d: Date) {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+  const [selectedFromDate, setSelectedFromDate] = useState<Date>(toDateOnly(yesterday));
+  const [selectedToDate, setSelectedToDate] = useState<Date>(toDateOnly(today));
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewInfo, setPreviewInfo] = useState<PreviewInfo | null>(null);
@@ -62,6 +71,32 @@ export default function Home() {
   const handleVideoError = (errorMessage: string) => {
     setError(errorMessage);
   };
+
+  // Charger le dataset par défaut au montage du composant
+  useEffect(() => {
+    const loadDefaultDataset = async () => {
+      try {
+        const response = await fetch('/api/datasets/status');
+        if (!response.ok) throw new Error('Erreur lors du chargement des datasets');
+        
+        const data = await response.json();
+        const defaultDataset = data.datasets?.find((dataset: SatelliteDataset) => 
+          dataset.default_display && dataset.enabled
+        );
+        
+        if (defaultDataset) {
+          console.log('🎯 Dataset par défaut chargé:', defaultDataset.key);
+          setSelectedDataset(defaultDataset);
+        } else {
+          console.log('ℹ️ Aucun dataset par défaut trouvé');
+        }
+      } catch (err) {
+        console.error('❌ Erreur lors du chargement du dataset par défaut:', err);
+      }
+    };
+
+    loadDefaultDataset();
+  }, []); // Effet exécuté une seule fois au montage
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -119,6 +154,8 @@ export default function Home() {
                     onDateRangeSelect={handleDateRangeSelect}
                     onPreviewInfo={handlePreviewInfo}
                     isLoading={isLoading}
+                    defaultFromDate={selectedFromDate.toISOString().slice(0,10)}
+                    defaultToDate={selectedToDate.toISOString().slice(0,10)}
                   />
                 </NoSSR>
 

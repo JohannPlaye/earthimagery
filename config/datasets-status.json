@@ -126,6 +126,15 @@
       "product": "GEOCOLOR",
       "resolution": "1250x750",
       "default_display": false
+    },
+    "GOES18.psw.GEOCOLOR.600x600": {
+      "satellite": "GOES18",
+      "sector": "psw",
+      "product": "GEOCOLOR",
+      "resolution": "600x600",
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-18 Pacific Southwest GEOCOLOR 600x600"
     }
   },
   "discovered_datasets": {
@@ -173,15 +182,6 @@
       "auto_download": false,
       "status": "available",
       "description": "GOES-18 Western US GEOCOLOR 2000x2000 (High Resolution)"
-    },
-    "GOES18.psw.GEOCOLOR.600x600": {
-      "satellite": "GOES18",
-      "sector": "psw",
-      "product": "GEOCOLOR",
-      "resolution": "600x600",
-      "auto_download": false,
-      "status": "available",
-      "description": "GOES-18 Pacific Southwest GEOCOLOR 600x600"
     },
     "GOES18.psw.GEOCOLOR.1000x1000": {
       "satellite": "GOES18",
@@ -232,5 +232,5 @@
   "total_discovered": 18,
   "last_discovery": "2025-07-30T01:00:00Z",
   "last_updated": "2025-07-30T01:00:00Z",
-  "last_update": "2025-08-02T01:21:25+02:00"
+  "last_update": "2025-08-02T22:06:40+02:00"
 }

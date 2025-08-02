@@ -16,10 +16,13 @@
     "@mui/material": "^7.2.0",
     "@mui/system": "^7.2.0",
     "@mui/x-date-pickers": "^8.9.0",
+    "@mui/x-date-pickers-pro": "^8.9.2",
+    "date-fns": "^4.1.0",
     "dayjs": "^1.11.13",
     "hls.js": "^1.6.7",
     "next": "15.4.4",
     "react": "19.1.0",
+    "react-date-range": "^2.0.1",
     "react-dom": "19.1.0"
   },
   "devDependencies": {
@@ -28,6 +31,7 @@
     "@types/hls.js": "^0.13.3",
     "@types/node": "^20",
     "@types/react": "^19",
+    "@types/react-date-range": "^1.4.10",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.4.4",

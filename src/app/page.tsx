@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import DateSelector from '@/components/DateSelector';
 import VideoPlayer from '@/components/VideoPlayer';
 import DatasetManager from '@/components/DatasetManager';
@@ -34,22 +34,19 @@ export default function Home() {
   function toDateOnly(d: Date) {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate());
   }
-  const today = new Date();
-  const yesterday = new Date();
-  yesterday.setDate(today.getDate() - 1);
+  const today = toDateOnly(new Date());
+  const yesterday = toDateOnly(new Date(Date.now() - 24 * 60 * 60 * 1000));
 
   // Hooks d'état pour la navigation et les sélections
   const [activeTab, setActiveTab] = useState(0);
   const [selectedDataset, setSelectedDataset] = useState<SatelliteDataset | null>(null);
-  const [selectedFromDate, setSelectedFromDate] = useState(toDateOnly(yesterday));
-  const [selectedToDate, setSelectedToDate] = useState(toDateOnly(today));
+  const [selectedDateRange, setSelectedDateRange] = useState<[Date, Date]>([yesterday, today]);
   const [isLoading, setIsLoading] = useState(false);
   const [previewInfo, setPreviewInfo] = useState<PreviewInfo | null>(null);
 
   // Gestion des changements de dates
   function handleDateRangeSelect(from: string, to: string) {
-    setSelectedFromDate(toDateOnly(new Date(from)));
-    setSelectedToDate(toDateOnly(new Date(to)));
+    setSelectedDateRange([toDateOnly(new Date(from)), toDateOnly(new Date(to))]);
   }
   function handlePreviewInfo(info: PreviewInfo) {
     setPreviewInfo(info);
@@ -66,6 +63,12 @@ export default function Home() {
     };
     loadDefaultDataset();
   }, []);
+
+  // Mémorisation des props pour éviter les re-rendus
+  const defaultDateRange = useMemo(() => [
+    selectedDateRange[0].toISOString().slice(0, 10),
+    selectedDateRange[1].toISOString().slice(0, 10)
+  ] as [string, string], [selectedDateRange]);
 
   return (
     <div className="flex flex-col h-screen bg-[#181820] text-white">
@@ -100,45 +103,23 @@ export default function Home() {
           </Tabs>
           <div className="mt-6 flex-1 overflow-y-auto">
             {activeTab === 0 && (
-              <div className="space-y-6">
+              <div className="bg-[#181825] rounded-xl p-4 space-y-6">
+                {/* Sélecteur de période en haut */}
+                <NoSSR fallback={<div>Chargement des dates...</div>}>
+                  <DateSelector
+                    onDateRangeSelect={handleDateRangeSelect}
+                    onPreviewInfo={handlePreviewInfo}
+                    isLoading={isLoading}
+                    defaultDateRange={defaultDateRange}
+                  />
+                </NoSSR>
+                {/* Sélecteur de dataset en dessous */}
                 <NoSSR fallback={<div>Chargement du sélecteur...</div>}>
                   <DatasetSelector
                     onDatasetSelect={setSelectedDataset}
                     selectedDataset={selectedDataset}
                   />
                 </NoSSR>
-                <NoSSR fallback={<div>Chargement des dates...</div>}>
-                  <DateSelector
-                    onDateRangeSelect={handleDateRangeSelect}
-                    onPreviewInfo={handlePreviewInfo}
-                    isLoading={isLoading}
-                    defaultFromDate={selectedFromDate.toISOString().slice(0, 10)}
-                    defaultToDate={selectedToDate.toISOString().slice(0, 10)}
-                  />
-                </NoSSR>
-                {previewInfo && (
-                  <div className="bg-[#232336] rounded-lg p-4 mt-4">
-                    <h3 className="text-lg font-semibold text-purple-300 mb-2">📊 Statistiques</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="text-center p-2 rounded-lg bg-blue-900/40">
-                        <div className="text-xl font-bold text-blue-400">{previewInfo.availableDays}</div>
-                        <div className="text-xs text-blue-300">Jours disponibles</div>
-                      </div>
-                      <div className="text-center p-2 rounded-lg bg-green-900/40">
-                        <div className="text-xl font-bold text-green-400">{previewInfo.totalSegments}</div>
-                        <div className="text-xs text-green-300">Segments vidéo</div>
-                      </div>
-                      <div className="text-center p-2 rounded-lg bg-purple-900/40">
-                        <div className="text-xl font-bold text-purple-300">{previewInfo.estimatedDurationFormatted}</div>
-                        <div className="text-xs text-purple-200">Durée estimée</div>
-                      </div>
-                      <div className="text-center p-2 rounded-lg bg-orange-900/40">
-                        <div className="text-xl font-bold text-orange-300">25</div>
-                        <div className="text-xs text-orange-200">FPS</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
             {activeTab === 1 && (
@@ -153,8 +134,8 @@ export default function Home() {
           <div className="h-full w-full flex items-center justify-center p-[25px]">
             <NoSSR fallback={<div>Chargement du player...</div>}>
               <VideoPlayer
-                fromDate={selectedFromDate}
-                toDate={selectedToDate}
+                fromDate={selectedDateRange[0]}
+                toDate={selectedDateRange[1]}
                 selectedDataset={selectedDataset}
                 className="h-full w-full"
               />

@@ -188,9 +188,26 @@ export default function DatasetManager() {
 
   // Organiser les datasets par catégories
   const organizeDatasets = (datasets: Dataset[]): DatasetsByCategory => {
+    // Sort datasets by name and resolution before organizing
+    // On trie par 'product' (nom du produit), puis par résolution (convertie en nombre si possible)
+    const parseResolution = (res: string | undefined): number => {
+      if (!res) return 0;
+      // Exemples : "1km", "500m", "0.25deg"
+      const match = res.match(/([\d\.]+)/);
+      return match ? parseFloat(match[1]) : 0;
+    };
+    const sorted = [...datasets].sort((a, b) => {
+      // Tri principal par clé unique (key)
+      if (a.key < b.key) return -1;
+      if (a.key > b.key) return 1;
+      // Si la clé est identique, on trie par produit
+      if (a.product < b.product) return -1;
+      if (a.product > b.product) return 1;
+      // Si le produit est identique, on trie par résolution croissante
+      return parseResolution(a.resolution) - parseResolution(b.resolution);
+    });
     const organized: DatasetsByCategory = {};
-    
-    datasets.forEach(dataset => {
+    sorted.forEach(dataset => {
       if (!organized[dataset.satellite]) {
         organized[dataset.satellite] = {};
       }
@@ -200,10 +217,8 @@ export default function DatasetManager() {
       if (!organized[dataset.satellite][dataset.sector][dataset.product]) {
         organized[dataset.satellite][dataset.sector][dataset.product] = [];
       }
-      
       organized[dataset.satellite][dataset.sector][dataset.product].push(dataset);
     });
-    
     return organized;
   };
 
@@ -255,61 +270,41 @@ export default function DatasetManager() {
   }
 
   return (
-    <Box>
-      {/* En-tête avec statistiques */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="h6" component="h2">
-              <SatelliteIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-              Gestion des Datasets Satellitaires
-            </Typography>
-            
-            <Box display="flex" gap={1}>
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={scanDatasets}
-                disabled={loading}
-                startIcon={<RefreshIcon />}
-              >
-                Scanner
-              </Button>
-              <Button
-                variant="contained"
-                size="small"
-                onClick={syncDatasets}
-                disabled={syncing}
-                startIcon={<DownloadIcon />}
-              >
-                {syncing ? 'Sync...' : 'Synchroniser'}
-              </Button>
-            </Box>
-          </Box>
-
-          {/* Statistiques */}
-          <Box display="flex" gap={3}>
-            <Box>
-              <Typography variant="body2" color="textSecondary">Total</Typography>
-              <Typography variant="h6">{stats.total}</Typography>
-            </Box>
-            <Box>
-              <Typography variant="body2" color="textSecondary">Activés</Typography>
-              <Typography variant="h6" color="primary">{stats.enabled}</Typography>
-            </Box>
-            <Box>
-              <Typography variant="body2" color="textSecondary">Téléchargés</Typography>
-              <Typography variant="h6" color="success.main">{stats.downloaded}</Typography>
-            </Box>
-            <Box>
-              <Typography variant="body2" color="textSecondary">Auto-sync</Typography>
-              <Typography variant="h6" color="info.main">{stats.autoSync}</Typography>
-            </Box>
-          </Box>
-
-          {syncing && <LinearProgress sx={{ mt: 2 }} />}
-        </CardContent>
-      </Card>
+    <Box className="bg-[#181825] text-[#e0e0ff] p-2 rounded-xl">
+      {/* En-tête minimaliste avec statistiques */}
+      <div className="flex justify-between items-center mb-2">
+        <div className="flex items-center gap-2 text-lg font-semibold">
+          <SatelliteIcon className="text-purple-400" />
+          Gestion des Datasets
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={scanDatasets}
+            disabled={loading}
+            sx={{ color: '#a78bfa', borderColor: '#a78bfa', minWidth: 0, padding: '6px' }}
+          >
+            <RefreshIcon />
+          </Button>
+          <Button
+            variant="contained"
+            size="small"
+            onClick={syncDatasets}
+            disabled={syncing}
+            sx={{ background: '#a78bfa', color: '#181825', minWidth: 0, padding: '6px' }}
+          >
+            <DownloadIcon />
+          </Button>
+        </div>
+      </div>
+      <div className="flex gap-4 mb-2 text-xs">
+        <div className="flex flex-col items-center"><span className="text-gray-400">Total</span><span>{stats.total}</span></div>
+        <div className="flex flex-col items-center"><span className="text-purple-400">Activés</span><span>{stats.enabled}</span></div>
+        <div className="flex flex-col items-center"><span className="text-green-400">Téléchargés</span><span>{stats.downloaded}</span></div>
+        <div className="flex flex-col items-center"><span className="text-blue-400">Auto-sync</span><span>{stats.autoSync}</span></div>
+      </div>
+      {syncing && <LinearProgress sx={{ mt: 1, background: '#312244' }} />}
 
       {/* Messages d'erreur */}
       {error && (
@@ -319,134 +314,90 @@ export default function DatasetManager() {
       )}
 
       {/* Liste des datasets organisée */}
-      {Object.entries(organizedDatasets).map(([satellite, sectors]) => (
-        <Accordion
-          key={satellite}
-          expanded={expandedSatellites.has(satellite)}
-          onChange={(_, expanded) => {
-            const newExpanded = new Set(expandedSatellites);
-            if (expanded) {
-              newExpanded.add(satellite);
-            } else {
-              newExpanded.delete(satellite);
-            }
-            setExpandedSatellites(newExpanded);
-          }}
-        >
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="h6">
-              {satellite}
-              <Chip 
-                size="small" 
-                label={Object.values(sectors).flat().flat().length}
-                sx={{ ml: 2 }}
-              />
-            </Typography>
-          </AccordionSummary>
-          
-          <AccordionDetails>
-            {Object.entries(sectors).map(([sector, products]) => (
-              <Box key={sector} sx={{ mb: 2 }}>
-                <Typography variant="subtitle1" color="primary" gutterBottom>
-                  📍 {sector.toUpperCase()}
-                </Typography>
-                
-                {Object.entries(products).map(([product, datasetList]) => (
-                  <Card key={product} variant="outlined" sx={{ mb: 1 }}>
-                    <CardContent sx={{ py: 1 }}>
-                      <Typography variant="subtitle2" gutterBottom>
-                        {product}
-                      </Typography>
-                      
-                      <Box display="flex" flexWrap="wrap" gap={1}>
-                        {datasetList.map(dataset => (
-                          <Box 
-                            key={dataset.key}
-                            display="flex" 
-                            alignItems="center" 
-                            justifyContent="space-between"
-                            p={1}
-                            border={1}
-                            borderColor="grey.300"
-                            borderRadius={1}
-                            minWidth="250px"
-                            flex="1 1 auto"
-                          >
-                            <Box display="flex" alignItems="center" gap={1}>
-                              {getStatusIcon(dataset.status)}
-                              <Typography variant="body2">
-                                {dataset.resolution}
-                              </Typography>
-                              {dataset.file_size && (
-                                <Typography variant="caption" color="textSecondary">
-                                  ({formatFileSize(dataset.file_size)})
-                                </Typography>
-                              )}
-                            </Box>
-                            
-                            <Box display="flex" flexDirection="column" alignItems="end">
-                              <FormControlLabel
-                                control={
-                                  <Switch
-                                    checked={dataset.enabled}
-                                    onChange={(e) => toggleDataset(dataset.key, e.target.checked, dataset.auto_download)}
-                                    size="small"
-                                    disabled={!!dataset.default_display} // Empêcher de désactiver si par défaut
-                                  />
-                                }
-                                label={<Typography variant="caption">Afficher</Typography>}
-                                sx={{ m: 0 }}
-                              />
-                              {/* Bouton Par défaut visible seulement si le dataset est affiché */}
-                              {dataset.enabled && (
-                                <FormControlLabel
-                                  control={
-                                    <input
-                                      type="radio"
-                                      name="defaultDisplay"
-                                      checked={!!dataset.default_display}
-                                      onChange={() => setDefaultDataset(dataset.key)}
-                                      style={{ marginRight: 4 }}
-                                    />
-                                  }
-                                  label={<Typography variant="caption">Par défaut</Typography>}
-                                  sx={{ m: 0 }}
+      <div className="space-y-2">
+        {Object.entries(organizedDatasets).map(([satellite, sectors]) => (
+          <div key={satellite} className="bg-[#232347] rounded-lg">
+            <button
+              className="w-full flex items-center justify-between px-3 py-2 text-left focus:outline-none"
+              onClick={() => {
+                const newExpanded = new Set(expandedSatellites);
+                if (!expandedSatellites.has(satellite)) {
+                  newExpanded.add(satellite);
+                } else {
+                  newExpanded.delete(satellite);
+                }
+                setExpandedSatellites(newExpanded);
+              }}
+            >
+              <span className="font-semibold text-purple-300">{satellite}</span>
+              <span className="bg-purple-900 text-purple-200 rounded-full px-2 py-0.5 text-xs">{Object.values(sectors).flat().flat().length}</span>
+            </button>
+            {expandedSatellites.has(satellite) && (
+              <div className="px-3 pb-2">
+                {Object.entries(sectors).map(([sector, products]) => (
+                  <div key={sector} className="mb-1">
+                    <div className="text-xs text-blue-300 font-medium mb-1">📍 {sector.toUpperCase()}</div>
+                    {Object.entries(products).map(([product, datasetList]) => (
+                      <div key={product} className="bg-[#181825] rounded-md mb-1 p-2">
+                        <div className="text-xs text-purple-200 font-semibold mb-1">{product}</div>
+                        <div className="flex flex-wrap gap-1">
+                          {datasetList.map(dataset => (
+                            <div
+                              key={dataset.key}
+                              className="flex items-center justify-between bg-[#232347] rounded px-2 py-1 min-w-[180px] text-xs"
+                            >
+                              <div className="flex items-center gap-1">
+                                {getStatusIcon(dataset.status)}
+                                <span className="text-gray-200">{dataset.resolution}</span>
+                                {dataset.file_size && (
+                                  <span className="text-gray-400">({formatFileSize(dataset.file_size)})</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  checked={dataset.enabled}
+                                  onChange={(e) => toggleDataset(dataset.key, e.target.checked, dataset.auto_download)}
+                                  size="small"
+                                  disabled={!!dataset.default_display}
+                                  color="secondary"
                                 />
-                              )}
-                              <FormControlLabel
-                                control={
-                                  <Switch
-                                    checked={dataset.auto_download}
-                                    onChange={(e) => toggleAutoDownload(dataset.key, e.target.checked)}
-                                    size="small"
-                                    color="secondary"
+                                {dataset.enabled && (
+                                  <input
+                                    type="radio"
+                                    name="defaultDisplay"
+                                    checked={!!dataset.default_display}
+                                    onChange={() => setDefaultDataset(dataset.key)}
+                                    className="accent-purple-400"
                                   />
-                                }
-                                label={<Typography variant="caption">Télécharger</Typography>}
-                                sx={{ m: 0 }}
-                              />
-                            </Box>
-                          </Box>
-                        ))}
-                      </Box>
-                    </CardContent>
-                  </Card>
+                                )}
+                                <Switch
+                                  checked={dataset.auto_download}
+                                  onChange={(e) => toggleAutoDownload(dataset.key, e.target.checked)}
+                                  size="small"
+                                  color="secondary"
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ))}
-              </Box>
-            ))}
-          </AccordionDetails>
-        </Accordion>
-      ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
 
       {datasets.length === 0 && !loading && (
-        <Card>
-          <CardContent>
-            <Typography variant="body1" textAlign="center" color="textSecondary">
-              Aucun dataset disponible. Cliquez sur "Scanner" pour découvrir les datasets.
-            </Typography>
-          </CardContent>
-        </Card>
+        <div className="bg-[#232347] rounded-lg p-4 text-center text-gray-400">
+          Aucun dataset disponible. Cliquez sur "Scanner" pour découvrir les datasets.
+        </div>
       )}
+    
+
+      {/* */}
     </Box>
   );
 }

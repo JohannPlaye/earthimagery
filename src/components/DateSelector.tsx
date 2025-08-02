@@ -1,21 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import React, { useState, useEffect } from 'react';
+import { DateRange } from 'react-date-range';
 import { Button, Alert, CircularProgress } from '@mui/material';
-import dayjs, { Dayjs } from 'dayjs';
-import 'dayjs/locale/fr';
-
-dayjs.locale('fr');
+import { fr } from 'date-fns/locale';
+import 'react-date-range/dist/styles.css';
+import 'react-date-range/dist/theme/default.css';
 
 interface DateSelectorProps {
   onDateRangeSelect: (from: string, to: string) => void;
   onPreviewInfo: (info: PlaylistInfo) => void;
   isLoading?: boolean;
-  defaultFromDate?: string;
-  defaultToDate?: string;
+  defaultDateRange?: [string, string];
 }
 
 interface PlaylistInfo {
@@ -25,260 +21,243 @@ interface PlaylistInfo {
   estimatedDurationFormatted: string;
 }
 
-export default function DateSelector({ 
-  onDateRangeSelect, 
-  onPreviewInfo, 
-  isLoading = false,
-  defaultFromDate,
-  defaultToDate
-}: DateSelectorProps) {
-  const [fromDate, setFromDate] = useState<Dayjs | null>(defaultFromDate ? dayjs(defaultFromDate) : null);
-  const [toDate, setToDate] = useState<Dayjs | null>(defaultToDate ? dayjs(defaultToDate) : null);
-  const [error, setError] = useState<string | null>(null);
-  const [previewInfo, setPreviewInfo] = useState<PlaylistInfo | null>(null);
-  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
-  const [mounted, setMounted] = useState(false);
+function validateDateRange(range: { startDate: Date; endDate: Date }) {
+  if (!range.startDate || !range.endDate) return "Veuillez sélectionner une période.";
+  const diff = (range.endDate.getTime() - range.startDate.getTime()) / (1000 * 3600 * 24);
+  if (diff < 0) return "La date de fin doit être après la date de début.";
+  if (diff > 365) return "La période ne peut pas dépasser 1 an.";
+  return null;
+}
 
-  React.useEffect(() => {
+export default function DateSelector({
+  onDateRangeSelect,
+  onPreviewInfo,
+  isLoading = false,
+  defaultDateRange,
+}: DateSelectorProps) {
+  const [range, setRange] = useState({
+    startDate: defaultDateRange?.[0] ? new Date(defaultDateRange[0]) : new Date(),
+    endDate: defaultDateRange?.[1] ? new Date(defaultDateRange[1]) : new Date(),
+    key: "selection",
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [previewInfo, setPreviewInfo] = useState<PlaylistInfo | null>(null);
+
+  // Simule le chargement côté client
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
     setMounted(true);
   }, []);
 
-  const validateDateRange = (from: Dayjs | null, to: Dayjs | null): string | null => {
-    if (!from || !to) {
-      return 'Veuillez sélectionner les deux dates';
-    }
-
-    if (from.isAfter(to)) {
-      return 'La date de début doit être antérieure à la date de fin';
-    }
-
-    const maxDays = 365; // Depuis les variables d'environnement
-    const diffDays = to.diff(from, 'day');
-    
-    if (diffDays > maxDays) {
-      return `La période ne peut pas dépasser ${maxDays} jours`;
-    }
-
-    if (from.isAfter(dayjs())) {
-      return 'La date de début ne peut pas être dans le futur';
-    }
-
-    return null;
+  const handleQuickSelect = (days: number) => {
+    const today = new Date();
+    const startDate = new Date(today.getTime() - days * 24 * 60 * 60 * 1000);
+    setRange({ startDate, endDate: today, key: "selection" });
+    setError(null);
+    setPreviewInfo(null);
   };
 
   const handlePreview = async () => {
-    const validationError = validateDateRange(fromDate, toDate);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    setError(null);
     setIsPreviewLoading(true);
-
     try {
-      const response = await fetch('/api/playlist', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: fromDate!.format('YYYY-MM-DD'),
-          to: toDate!.format('YYYY-MM-DD'),
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erreur lors de la récupération des informations');
+      const validationError = validateDateRange(range);
+      if (validationError) {
+        setError(validationError);
+        return;
       }
-
-      const info = await response.json();
+      setError(null);
+      // Simule une requête d'aperçu
+      const info: PlaylistInfo = {
+        availableDays: Math.round((range.endDate.getTime() - range.startDate.getTime()) / (1000 * 3600 * 24)) + 1,
+        totalSegments: Math.round((range.endDate.getTime() - range.startDate.getTime()) / (1000 * 3600 * 24)) * 24,
+        estimatedDurationSeconds: Math.round((range.endDate.getTime() - range.startDate.getTime()) / (1000 * 3600 * 24)) * 24 * 10,
+        estimatedDurationFormatted: `${Math.round((range.endDate.getTime() - range.startDate.getTime()) / (1000 * 3600 * 24)) * 4} min`,
+      };
       setPreviewInfo(info);
       onPreviewInfo(info);
-
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur inconnue');
-      setPreviewInfo(null);
     } finally {
       setIsPreviewLoading(false);
     }
   };
 
+  function formatDateLocal(date: Date) {
+    // Format YYYY-MM-DD en local
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
   const handleGenerate = () => {
-    console.log('🔍 DateSelector Debug Info:');
-    console.log('  - fromDate:', fromDate?.format('YYYY-MM-DD'));
-    console.log('  - toDate:', toDate?.format('YYYY-MM-DD'));
-    
-    const validationError = validateDateRange(fromDate, toDate);
+    const validationError = validateDateRange(range);
     if (validationError) {
       setError(validationError);
       return;
     }
-
     setError(null);
-    console.log('🚀 Calling onDateRangeSelect with:', fromDate!.format('YYYY-MM-DD'), toDate!.format('YYYY-MM-DD'));
+    const startDateCorrected = new Date(range.startDate);
+    startDateCorrected.setDate(startDateCorrected.getDate() + 1);
+    const endDateInclusive = new Date(range.endDate);
+    endDateInclusive.setDate(endDateInclusive.getDate() + 1);
     onDateRangeSelect(
-      fromDate!.format('YYYY-MM-DD'),
-      toDate!.format('YYYY-MM-DD')
+      formatDateLocal(startDateCorrected),
+      formatDateLocal(endDateInclusive)
     );
-  };
-
-  const handleQuickSelect = (days: number) => {
-    const today = dayjs();
-    const startDate = today.subtract(days, 'day');
-    setFromDate(startDate);
-    setToDate(today);
-    setError(null);
-    setPreviewInfo(null);
   };
 
   if (!mounted) {
     return (
-      <div className="w-full max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-          Sélection de la période d&apos;observation
-        </h2>
-        <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="ml-2">Chargement...</span>
+      <div className="w-full">
+        <div className="flex items-center justify-center py-4">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-400"></div>
+          <span className="ml-2 text-gray-300 text-sm">Chargement...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="fr">
-      <div className="w-full max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-          Sélection de la période d&apos;observation
-        </h2>
-
-        {/* Sélecteurs rapides */}
-        <div className="mb-6">
-          <p className="text-sm font-medium text-gray-700 mb-3">Sélections rapides:</p>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { label: 'Dernière semaine', days: 7 },
-              { label: 'Dernier mois', days: 30 },
-              { label: 'Derniers 3 mois', days: 90 },
-              { label: 'Dernière année', days: 365 },
-            ].map(({ label, days }) => (
-              <Button
-                key={days}
-                variant="outlined"
-                size="small"
-                onClick={() => handleQuickSelect(days)}
-                className="text-xs"
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        {/* Sélecteurs de dates */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <DatePicker
-            label="Date de début"
-            value={fromDate}
-            onChange={(newValue) => {
-              setFromDate(newValue);
-              setError(null);
-              setPreviewInfo(null);
-            }}
-            maxDate={dayjs()}
-            slotProps={{
-              textField: {
-                fullWidth: true,
-                variant: 'outlined',
-              },
-            }}
-          />
-          
-          <DatePicker
-            label="Date de fin"
-            value={toDate}
-            onChange={(newValue) => {
-              setToDate(newValue);
-              setError(null);
-              setPreviewInfo(null);
-            }}
-            minDate={fromDate || undefined}
-            maxDate={dayjs()}
-            slotProps={{
-              textField: {
-                fullWidth: true,
-                variant: 'outlined',
-              },
-            }}
-          />
-        </div>
-
-        {/* Affichage des erreurs */}
-        {error && (
-          <Alert severity="error" className="mb-4">
-            {error}
-          </Alert>
-        )}
-
-        {/* Boutons d'action */}
-        <div className="flex flex-col sm:flex-row gap-3 mb-6">
-          <Button
-            variant="outlined"
-            onClick={handlePreview}
-            disabled={!fromDate || !toDate || isPreviewLoading}
-            startIcon={isPreviewLoading ? <CircularProgress size={20} /> : null}
-            className="flex-1"
-          >
-            {isPreviewLoading ? 'Analyse...' : 'Aperçu des données'}
-          </Button>
-          
-          <Button
-            variant="contained"
-            onClick={handleGenerate}
-            disabled={!fromDate || !toDate || isLoading}
-            startIcon={isLoading ? <CircularProgress size={20} /> : null}
-            className="flex-1 bg-blue-600 hover:bg-blue-700"
-          >
-            {isLoading ? 'Génération...' : 'Générer l\'animation'}
-          </Button>
-        </div>
-
-        {/* Informations de prévisualisation */}
-        {previewInfo && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="font-semibold text-blue-800 mb-2">
-              Informations sur la période sélectionnée
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <span className="font-medium text-blue-700">Jours disponibles:</span>
-                <p className="text-blue-600">{previewInfo.availableDays}</p>
-              </div>
-              <div>
-                <span className="font-medium text-blue-700">Segments vidéo:</span>
-                <p className="text-blue-600">{previewInfo.totalSegments}</p>
-              </div>
-              <div>
-                <span className="font-medium text-blue-700">Durée estimée:</span>
-                <p className="text-blue-600">{previewInfo.estimatedDurationFormatted}</p>
-              </div>
-              <div>
-                <span className="font-medium text-blue-700">Qualité:</span>
-                <p className="text-blue-600">25 FPS</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Aide */}
-        <div className="mt-6 text-xs text-gray-500 text-center">
-          💡 Sélectionnez une période pour générer une animation des images satellitaires.
-          <br />
-          La durée maximale est limitée à 1 an pour des raisons de performance.
+    <div className="w-full space-y-4">
+      <h3 className="text-lg font-semibold text-purple-300 mb-4">📅 Période d'observation</h3>
+      {/* Sélecteurs rapides */}
+      <div>
+        <p className="text-sm font-medium text-gray-300 mb-2">Sélections rapides:</p>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { label: '7j', days: 7 },
+            { label: '30j', days: 30 },
+            { label: '90j', days: 90 },
+            { label: '1an', days: 365 },
+          ].map(({ label, days }) => (
+            <Button
+              key={days}
+              variant="outlined"
+              size="small"
+              onClick={() => handleQuickSelect(days)}
+              sx={{
+                minWidth: '50px',
+                fontSize: '12px',
+                color: '#a78bfa',
+                borderColor: '#a78bfa',
+                '&:hover': {
+                  borderColor: '#7c3aed',
+                  backgroundColor: '#7c3aed20',
+                },
+              }}
+            >
+              {label}
+            </Button>
+          ))}
         </div>
       </div>
-    </LocalizationProvider>
+      {/* Sélecteur de plage de dates */}
+      <div className="mb-4">
+        <div className="w-full flex justify-center">
+          <DateRange
+            ranges={[range]}
+            onChange={(item: any) => {
+              setRange(item.selection);
+              setError(null);
+              setPreviewInfo(null);
+            }}
+            moveRangeOnFirstSelection={false}
+            showMonthAndYearPickers={true}
+            locale={fr}
+            rangeColors={["#7c3aed"]}
+            color="#7c3aed"
+            direction="horizontal"
+            months={1}
+            minDate={new Date('2000-01-01')}
+            maxDate={new Date()}
+            className="rounded-lg shadow-lg bg-[#232336] text-white border border-[#2d2d44] max-w-[320px] w-full"
+          />
+        </div>
+      </div>
+      {/* Affichage des erreurs */}
+      {error && (
+        <Alert
+          severity="error"
+          sx={{
+            backgroundColor: '#7f1d1d',
+            color: '#fecaca',
+            borderColor: '#dc2626',
+            marginBottom: '16px',
+          }}
+        >
+          {error}
+        </Alert>
+      )}
+      {/* Boutons d'action */}
+      <div className="flex flex-col gap-2">
+        <Button
+          variant="outlined"
+          onClick={handlePreview}
+          disabled={!range.startDate || !range.endDate || isPreviewLoading}
+          startIcon={isPreviewLoading ? <CircularProgress size={16} /> : null}
+          sx={{
+            color: '#a78bfa',
+            borderColor: '#a78bfa',
+            fontSize: '14px',
+            padding: '8px 16px',
+            '&:hover': {
+              borderColor: '#7c3aed',
+              backgroundColor: '#7c3aed20',
+            },
+            '&:disabled': {
+              color: '#6b7280',
+              borderColor: '#4b5563',
+            },
+          }}
+        >
+          {isPreviewLoading ? 'Analyse...' : 'Aperçu'}
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleGenerate}
+          disabled={!range.startDate || !range.endDate || isLoading}
+          startIcon={isLoading ? <CircularProgress size={16} /> : null}
+          sx={{
+            backgroundColor: '#7c3aed',
+            color: '#ffffff',
+            fontSize: '14px',
+            padding: '8px 16px',
+            '&:hover': {
+              backgroundColor: '#6d28d9',
+            },
+            '&:disabled': {
+              backgroundColor: '#4b5563',
+              color: '#9ca3af',
+            },
+          }}
+        >
+          {isLoading ? 'Génération...' : "Générer l'animation"}
+        </Button>
+      </div>
+      {/* Informations de prévisualisation */}
+      {previewInfo && (
+        <div className="bg-[#232336] border border-[#2d2d44] rounded-lg p-4 mt-4">
+          <h4 className="font-semibold text-purple-300 mb-3 text-sm">ℹ️ Informations sur la période</h4>
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="text-center p-2 rounded bg-blue-900/30">
+              <div className="font-bold text-blue-400">{previewInfo.availableDays}</div>
+              <div className="text-blue-300">Jours</div>
+            </div>
+            <div className="text-center p-2 rounded bg-green-900/30">
+              <div className="font-bold text-green-400">{previewInfo.totalSegments}</div>
+              <div className="text-green-300">Segments</div>
+            </div>
+            <div className="text-center p-2 rounded bg-purple-900/30 col-span-2">
+              <div className="font-bold text-purple-300">{previewInfo.estimatedDurationFormatted}</div>
+              <div className="text-purple-200">Durée estimée</div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Aide */}
+      <div className="mt-4 text-xs text-gray-400 text-center">
+        💡 Sélectionnez une période pour générer une animation des images satellitaires.
+      </div>
+    </div>
   );
 }

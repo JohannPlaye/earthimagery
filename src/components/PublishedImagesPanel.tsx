@@ -56,11 +56,12 @@ interface PublishedImagesPanelProps {
     source?: string;
     label?: string;
   };
+  alwaysOpen?: boolean;
 }
 
 
-export default function PublishedImagesPanel({ dataset }: PublishedImagesPanelProps) {
-  const [open, setOpen] = useState(false);
+export default function PublishedImagesPanel({ dataset, alwaysOpen }: PublishedImagesPanelProps) {
+  const [open, setOpen] = useState(alwaysOpen || false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [images, setImages] = useState<Array<{ name: string; url: string }>>([]);
@@ -97,6 +98,13 @@ export default function PublishedImagesPanel({ dataset }: PublishedImagesPanelPr
     }
   };
 
+  // Si alwaysOpen=true, charger les images immédiatement
+  React.useEffect(() => {
+    if (alwaysOpen && images.length === 0 && !loading) {
+      fetchImages();
+    }
+  }, [alwaysOpen]);
+
 
   // Décodage date/heure et tri du plus récent au plus ancien directement sur la liste reçue
   const imagesWithDate = images.map(img => {
@@ -121,10 +129,65 @@ export default function PublishedImagesPanel({ dataset }: PublishedImagesPanelPr
     setPage(1);
   }, [images]);
 
-  return (
+  return alwaysOpen ? (
+    <div>
+      <Typography fontWeight="bold" sx={{ mb: 2 }}>{dataset.label}</Typography>
+      {loading && <CircularProgress size={24} />}
+      {error && <Alert severity="error">{error}</Alert>}
+      {sourceUrl && (
+        <Typography variant="body2" sx={{ mb: 1 }}>
+          Source : <Link href={sourceUrl} target="_blank" rel="noopener">{sourceUrl}</Link>
+        </Typography>
+      )}
+      {imagesWithDate.length > 0 && (
+        <>
+          <TableContainer component={Paper} sx={{ mb: 2 }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Nom</TableCell>
+                  <TableCell>Date/Heure</TableCell>
+                  <TableCell align="right">Téléchargement</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {pagedImages.map(img => (
+                  <TableRow key={img.url}>
+                    <TableCell>{img.name}</TableCell>
+                    <TableCell>{img.dateLabel}</TableCell>
+                    <TableCell align="right">
+                      <Button href={img.url} target="_blank" rel="noopener" size="small" variant="outlined" download>
+                        Télécharger
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          {pageCount > 1 && (
+            <Box display="flex" justifyContent="center" mt={2}>
+              <Pagination
+                count={pageCount}
+                page={page}
+                onChange={handlePageChange}
+                size="small"
+                color="primary"
+                showFirstButton
+                showLastButton
+              />
+            </Box>
+          )}
+        </>
+      )}
+      {!loading && !error && images.length === 0 && (
+        <Typography variant="body2" color="textSecondary">Aucune image trouvée.</Typography>
+      )}
+    </div>
+  ) : (
     <Accordion expanded={open} onChange={handleToggle} sx={{ mb: 2 }}>
       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-        <Typography fontWeight="bold">Images publiées {dataset.label ? `- ${dataset.label}` : ''}</Typography>
+        <Typography fontWeight="bold">{dataset.label}</Typography>
       </AccordionSummary>
       <AccordionDetails>
         {loading && <CircularProgress size={24} />}

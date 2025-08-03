@@ -270,13 +270,10 @@ export default function DatasetManager() {
   }
 
   return (
-    <Box className="bg-[#181825] text-[#e0e0ff] p-2 rounded-xl">
+    <Box className="rounded-xl">
+      <h3 className="text-lg font-semibold text-purple-300">🛰️ Sélection du Dataset</h3>
       {/* En-tête minimaliste avec statistiques */}
       <div className="flex justify-between items-center mb-2">
-        <div className="flex items-center gap-2 text-lg font-semibold">
-          <SatelliteIcon className="text-purple-400" />
-          Gestion des Datasets
-        </div>
         <div className="flex gap-2">
           <Button
             variant="outlined"

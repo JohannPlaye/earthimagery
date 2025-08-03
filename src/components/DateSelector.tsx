@@ -29,12 +29,20 @@ function validateDateRange(range: { startDate: Date; endDate: Date }) {
   return null;
 }
 
+function formatDateLocal(date: Date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export default function DateSelector({
   onDateRangeSelect,
   onPreviewInfo,
   isLoading = false,
   defaultDateRange,
-}: DateSelectorProps) {
+  children,
+}: React.PropsWithChildren<DateSelectorProps>) {
   const [range, setRange] = useState({
     startDate: defaultDateRange?.[0] ? new Date(defaultDateRange[0]) : new Date(),
     endDate: defaultDateRange?.[1] ? new Date(defaultDateRange[1]) : new Date(),
@@ -81,14 +89,6 @@ export default function DateSelector({
     }
   };
 
-  function formatDateLocal(date: Date) {
-    // Format YYYY-MM-DD en local
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-  }
-
   const handleGenerate = () => {
     const validationError = validateDateRange(range);
     if (validationError) {
@@ -106,20 +106,9 @@ export default function DateSelector({
     );
   };
 
-  if (!mounted) {
-    return (
-      <div className="w-full">
-        <div className="flex items-center justify-center py-4">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-400"></div>
-          <span className="ml-2 text-gray-300 text-sm">Chargement...</span>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="w-full space-y-4">
-      <h3 className="text-lg font-semibold text-purple-300 mb-4">📅 Période d'observation</h3>
+      <h3 className="text-lg font-semibold text-purple-300">📅 Période d'observation</h3>
       {/* Sélecteurs rapides */}
       <div>
         <p className="text-sm font-medium text-gray-300 mb-2">Sélections rapides:</p>
@@ -174,6 +163,8 @@ export default function DateSelector({
           />
         </div>
       </div>
+      {/* Bloc Sélection du Dataset Satellitaire inséré ici */}
+      {children}
       {/* Affichage des erreurs */}
       {error && (
         <Alert
@@ -190,6 +181,8 @@ export default function DateSelector({
       )}
       {/* Boutons d'action */}
       <div className="flex flex-col gap-2">
+        {/* Aperçu masqué */}
+        {/*
         <Button
           variant="outlined"
           onClick={handlePreview}
@@ -212,6 +205,7 @@ export default function DateSelector({
         >
           {isPreviewLoading ? 'Analyse...' : 'Aperçu'}
         </Button>
+        */}
         <Button
           variant="contained"
           onClick={handleGenerate}
@@ -231,7 +225,7 @@ export default function DateSelector({
             },
           }}
         >
-          {isLoading ? 'Génération...' : "Générer l'animation"}
+          {isLoading ? 'Génération...' : "Actualiser la période"}
         </Button>
       </div>
       {/* Informations de prévisualisation */}
@@ -254,10 +248,6 @@ export default function DateSelector({
           </div>
         </div>
       )}
-      {/* Aide */}
-      <div className="mt-4 text-xs text-gray-400 text-center">
-        💡 Sélectionnez une période pour générer une animation des images satellitaires.
-      </div>
     </div>
   );
 }

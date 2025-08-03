@@ -75,56 +75,55 @@ export default function Home() {
       <main className="flex">
         {/* Sidebar latéral */}
         <aside className="w-1/6 min-w-[220px] max-w-[320px] h-screen bg-[#232336] border-r border-[#2d2d44] flex flex-col py-6 px-3">
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-purple-400 tracking-wide mb-2">EarthImagery</h1>
-            <span className="text-xs text-gray-400">Observation satellite</span>
+          <div className="mb-4">
+            <h1 className="text-3xl font-bold text-purple-400 tracking-wide mb-2">EarthImagery</h1>
+            <span className="text-base text-purple-300">Earth on your screen</span>
           </div>
-          <Tabs
-            orientation="vertical"
-            value={activeTab}
-            onChange={(_, newValue) => setActiveTab(newValue)}
-            sx={{
-              '.MuiTabs-indicator': { backgroundColor: '#a78bfa' },
-              '.MuiTab-root': {
-                color: '#a78bfa',
-                fontWeight: 600,
-                borderRadius: '8px',
-                marginBottom: '8px',
-                background: '#232336',
-                '&.Mui-selected': {
-                  background: 'linear-gradient(90deg, #7c3aed 60%, #232336 100%)',
-                  color: '#fff',
-                },
-              },
-            }}
-          >
-            <Tab label="⚙️ Paramètres" />
-            <Tab label="🛰️ Datasets" />
-          </Tabs>
+          {/* Tabs horizontaux personnalisés */}
+          <div className="flex flex-row gap-2 mb-0">
+            <button
+              className={`flex-1 py-2 px-4 font-semibold rounded-t-lg focus:outline-none transition-colors duration-150 ${activeTab === 0 ? 'text-sm border-b-4 border-purple-400 text-purple-200 bg-[#232336]' : 'text-sm text-purple-400 bg-transparent'}`}
+              onClick={() => setActiveTab(0)}
+              type="button"
+            >
+              ⚙️ Paramètres
+            </button>
+            <button
+              className={`flex-1 py-2 px-4 font-semibold rounded-t-lg focus:outline-none transition-colors duration-150 ${activeTab === 1 ? 'text-sm border-b-4 border-purple-400 text-purple-200 bg-[#232336]' : 'text-sm text-purple-400 bg-transparent'}`}
+              onClick={() => setActiveTab(1)}
+              type="button"
+            >
+              🛰️ Datasets
+            </button>
+          </div>
           <div className="mt-6 flex-1 overflow-y-auto">
             {activeTab === 0 && (
-              <div className="bg-[#181825] rounded-xl p-4 space-y-6">
-                {/* Sélecteur de période en haut */}
-                <NoSSR fallback={<div>Chargement des dates...</div>}>
-                  <DateSelector
-                    onDateRangeSelect={handleDateRangeSelect}
-                    onPreviewInfo={handlePreviewInfo}
-                    isLoading={isLoading}
-                    defaultDateRange={defaultDateRange}
-                  />
-                </NoSSR>
-                {/* Sélecteur de dataset en dessous */}
-                <NoSSR fallback={<div>Chargement du sélecteur...</div>}>
-                  <DatasetSelector
-                    onDatasetSelect={setSelectedDataset}
-                    selectedDataset={selectedDataset}
-                  />
-                </NoSSR>
+              <div className="space-y-6">
+                <div className="bg-[#101828] rounded-xl p-4">
+                  <NoSSR fallback={<div>Chargement des dates...</div>}>
+                    <DateSelector
+                      onDateRangeSelect={handleDateRangeSelect}
+                      onPreviewInfo={handlePreviewInfo}
+                      isLoading={isLoading}
+                      defaultDateRange={defaultDateRange}
+                    />
+                  </NoSSR>
+                </div>
+                <div className="bg-[#101828] rounded-xl p-4">
+                  <NoSSR fallback={<div>Chargement du sélecteur...</div>}>
+                    <DatasetSelector
+                      onDatasetSelect={setSelectedDataset}
+                      selectedDataset={selectedDataset}
+                    />
+                  </NoSSR>
+                </div>
               </div>
             )}
             {activeTab === 1 && (
               <div className="mt-2">
-                <DatasetManager />
+                <div className="bg-[#101828] rounded-xl p-4">
+                  <DatasetManager />
+                </div>
               </div>
             )}
           </div>

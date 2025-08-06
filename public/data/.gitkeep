@@ -1,9 +1,0 @@
-# Structure des données EarthImagery
-
-Ce dossier contient les données téléchargées de l'application EarthImagery :
-- Images satellitaires téléchargées
-- Vidéos générées
-- Fichiers de streaming HLS
-- Logs de téléchargement
-
-Ces fichiers sont ignorés par Git pour éviter de committer de gros volumes de données.

@@ -2,6 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
+import fs from 'fs';
+
+interface DatasetConfig {
+  satellite: string;
+  sector: string;
+  product: string;
+  resolution: string;
+  enabled: boolean;
+  auto_download: boolean;
+  default_display: boolean;
+}
+
+interface Config {
+  enabled_datasets: Record<string, DatasetConfig>;
+  disabled_datasets?: Record<string, DatasetConfig>;
+}
 
 const execAsync = promisify(exec);
 
@@ -25,8 +41,7 @@ export async function POST(request: NextRequest) {
       // Exclusivité : retire le flag default_display de tous les autres datasets
       const configPath = path.join(process.cwd(), 'config', 'datasets-status.json');
       const datasetKey = `${satellite}.${sector}.${product}.${resolution}`;
-      const fs = require('fs');
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      const config: Config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
       
       // S'assurer que le dataset est bien dans enabled_datasets
       if (!config.enabled_datasets[datasetKey]) {
@@ -72,7 +87,7 @@ export async function POST(request: NextRequest) {
       
       console.log(`🔧 Modification téléchargement: ${satellite}.${sector}.${product}.${resolution} (auto: ${auto_download})`);
       
-      const { stdout, stderr } = await execAsync(command, {
+      const { stderr } = await execAsync(command, {
         timeout: 30000,
         cwd: process.cwd()
       });
@@ -96,7 +111,7 @@ export async function POST(request: NextRequest) {
       
       console.log(`🔧 Activation dataset: ${satellite}.${sector}.${product}.${resolution} (auto: ${autoFlag})`);
       
-      const { stdout, stderr } = await execAsync(command, {
+      const { stderr } = await execAsync(command, {
         timeout: 30000,
         cwd: process.cwd()
       });
@@ -119,7 +134,7 @@ export async function POST(request: NextRequest) {
       
       console.log(`🔧 Désactivation dataset: ${satellite}.${sector}.${product}.${resolution}`);
       
-      const { stdout, stderr } = await execAsync(command, {
+      const { stderr } = await execAsync(command, {
         timeout: 30000,
         cwd: process.cwd()
       });

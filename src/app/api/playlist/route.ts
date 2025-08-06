@@ -88,7 +88,6 @@ async function generatePlaylist(fromDate: Date, toDate: Date, satellite: string,
 
   const segments: string[] = [];
   let maxDuration = 0;
-  let sequenceNumber = 0;
 
   // Parcourir chaque jour dans la plage
   const currentDate = new Date(fromDate);

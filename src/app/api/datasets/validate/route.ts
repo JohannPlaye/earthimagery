@@ -3,6 +3,21 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
 
+interface Config {
+  enabled_datasets?: Record<string, unknown>;
+  disabled_datasets?: Record<string, unknown>;
+}
+
+interface TrackingDataset {
+  availability?: {
+    last_check?: string;
+  };
+}
+
+interface TrackingData {
+  tracking?: Record<string, TrackingDataset>;
+}
+
 const execAsync = promisify(exec);
 
 // Chemin vers le script de validation
@@ -57,38 +72,37 @@ export async function GET() {
     const configPath = path.join(process.cwd(), 'config', 'datasets-status.json');
     const trackingPath = path.join(process.cwd(), 'config', 'download-tracking.json');
     
-    let config = {};
-    let tracking = {};
+    let config: Config = {};
+    let tracking: TrackingData = {};
     
     try {
       const configContent = await fs.readFile(configPath, 'utf-8');
       config = JSON.parse(configContent);
-    } catch (err) {
+    } catch {
       console.warn('Fichier de configuration non trouvé');
     }
     
     try {
       const trackingContent = await fs.readFile(trackingPath, 'utf-8');
       tracking = JSON.parse(trackingContent);
-    } catch (err) {
+    } catch {
       console.warn('Fichier de tracking non trouvé');
     }
     
     // Calculer les statistiques de disponibilité
     const stats = {
-      enabled: Object.keys((config as any).enabled_datasets || {}).length,
-      disabled: Object.keys((config as any).disabled_datasets || {}).length,
-      total: Object.keys((config as any).enabled_datasets || {}).length + 
-             Object.keys((config as any).disabled_datasets || {}).length,
-      last_validation: null
+      enabled: Object.keys(config.enabled_datasets || {}).length,
+      disabled: Object.keys(config.disabled_datasets || {}).length,
+      total: Object.keys(config.enabled_datasets || {}).length + 
+             Object.keys(config.disabled_datasets || {}).length,
+      last_validation: null as string | null
     };
     
     // Chercher la dernière validation dans le tracking
-    const trackingData = tracking as any;
-    if (trackingData.tracking) {
-      const validationDates = Object.values(trackingData.tracking)
-        .map((dataset: any) => dataset.availability?.last_check)
-        .filter(Boolean)
+    if (tracking.tracking) {
+      const validationDates = Object.values(tracking.tracking)
+        .map((dataset: TrackingDataset) => dataset.availability?.last_check)
+        .filter((date): date is string => Boolean(date))
         .sort()
         .reverse();
       

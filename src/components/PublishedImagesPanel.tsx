@@ -1,6 +1,6 @@
 "use client";
-import React, { useState } from 'react';
-import { Accordion, AccordionSummary, AccordionDetails, Button, Typography, Link, List, ListItem, ListItemText, CircularProgress, Alert, Pagination, Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
+import React, { useState, useCallback } from 'react';
+import { Accordion, AccordionSummary, AccordionDetails, Button, Typography, Link, CircularProgress, Alert, Pagination, Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
 // Essaie de décoder la date/heure à partir du nom de fichier (formats courants)
 function parseImageDate(name: string): { date: Date|null, label: string } {
   // Format 1: YYYY-MM-DD[_T]HHMM (ex: 2024-07-31T1200 ou 2024-07-31_1200)
@@ -68,7 +68,7 @@ export default function PublishedImagesPanel({ dataset, alwaysOpen }: PublishedI
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
   const [page, setPage] = useState(1);
 
-  const fetchImages = async () => {
+  const fetchImages = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -84,14 +84,14 @@ export default function PublishedImagesPanel({ dataset, alwaysOpen }: PublishedI
       if (!data.success) throw new Error(data.error || 'Erreur inconnue');
       setImages(data.images || []);
       setSourceUrl(data.source_url);
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors du chargement');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors du chargement');
     } finally {
       setLoading(false);
     }
-  };
+  }, [dataset.satellite, dataset.sector, dataset.product, dataset.resolution, dataset.source]);
 
-  const handleToggle = (_: any, expanded: boolean) => {
+  const handleToggle = (_: React.SyntheticEvent, expanded: boolean) => {
     setOpen(expanded);
     if (expanded && images.length === 0 && !loading) {
       fetchImages();
@@ -103,7 +103,7 @@ export default function PublishedImagesPanel({ dataset, alwaysOpen }: PublishedI
     if (alwaysOpen && images.length === 0 && !loading) {
       fetchImages();
     }
-  }, [alwaysOpen]);
+  }, [alwaysOpen, images.length, loading, fetchImages]);
 
 
   // Décodage date/heure et tri du plus récent au plus ancien directement sur la liste reçue

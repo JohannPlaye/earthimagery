@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
               duration: Math.round(totalDuration),
               file_size: stats.size
             });
-          } catch (error) {
+          } catch {
             // Ignorer les erreurs pour les dossiers/fichiers non valides
           }
         }
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
           total: playlists.length
         });
 
-      } catch (error) {
+      } catch {
         return NextResponse.json({
           success: true,
           playlists: [],
@@ -129,11 +129,11 @@ export async function GET(request: NextRequest) {
                   duration: Math.round(totalDuration),
                   file_size: stats.size
                 });
-              } catch (error) {
+              } catch {
                 // Ignorer les erreurs de fichiers individuels
               }
             }
-          } catch (error) {
+          } catch {
             // Ignorer les erreurs de dossiers individuels
           }
         }
@@ -148,7 +148,7 @@ export async function GET(request: NextRequest) {
         total: allPlaylists.length
       });
 
-    } catch (error) {
+    } catch {
       return NextResponse.json({
         success: true,
         playlists: [],

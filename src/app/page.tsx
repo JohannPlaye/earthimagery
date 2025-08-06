@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import DateSelector from '@/components/DateSelector';
 import VideoPlayer from '@/components/VideoPlayer';
 import DatasetManager from '@/components/DatasetManager';
 import DatasetSelector from '@/components/DatasetSelector';
 import NoSSR from '@/components/NoSSR';
-import { Tabs, Tab, Box } from '@mui/material';
 
 interface PreviewInfo {
   availableDays: number;
@@ -41,15 +40,14 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState(0);
   const [selectedDataset, setSelectedDataset] = useState<SatelliteDataset | null>(null);
   const [selectedDateRange, setSelectedDateRange] = useState<[Date, Date]>([yesterday, today]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [previewInfo, setPreviewInfo] = useState<PreviewInfo | null>(null);
 
   // Gestion des changements de dates
-  function handleDateRangeSelect(from: string, to: string) {
-    setSelectedDateRange([toDateOnly(new Date(from)), toDateOnly(new Date(to))]);
+  function handleDateRangeSelect(range: { startDate: Date; endDate: Date }) {
+    setSelectedDateRange([toDateOnly(range.startDate), toDateOnly(range.endDate)]);
   }
-  function handlePreviewInfo(info: PreviewInfo) {
-    setPreviewInfo(info);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  function handlePreviewInfo(_: PreviewInfo | null) {
+    // Cette fonction peut être retirée si elle n'est plus nécessaire
   }
 
   // Charger le dataset par défaut au montage
@@ -63,12 +61,6 @@ export default function Home() {
     };
     loadDefaultDataset();
   }, []);
-
-  // Mémorisation des props pour éviter les re-rendus
-  const defaultDateRange = useMemo(() => [
-    selectedDateRange[0].toISOString().slice(0, 10),
-    selectedDateRange[1].toISOString().slice(0, 10)
-  ] as [string, string], [selectedDateRange]);
 
   return (
     <div className="flex flex-col h-screen bg-[#181820] text-white">
@@ -104,8 +96,6 @@ export default function Home() {
                     <DateSelector
                       onDateRangeSelect={handleDateRangeSelect}
                       onPreviewInfo={handlePreviewInfo}
-                      isLoading={isLoading}
-                      defaultDateRange={defaultDateRange}
                     />
                   </NoSSR>
                 </div>

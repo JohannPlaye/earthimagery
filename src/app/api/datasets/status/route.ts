@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -19,6 +19,36 @@ interface Dataset {
   disabled_reason?: string;
 }
 
+interface DatasetConfig {
+  satellite?: string;
+  sector?: string;
+  product?: string;
+  resolution?: string;
+  auto_download?: boolean;
+  default_display?: boolean;
+  re_enabled_date?: string;
+  description?: string;
+  disabled_reason?: string;
+  discovered_date?: string;
+  enabled?: boolean;
+}
+
+interface TrackingInfo {
+  last_download?: string;
+  total_images_downloaded?: number;
+  dataset_info?: DatasetConfig;
+}
+
+interface ConfigData {
+  enabled_datasets?: Record<string, DatasetConfig>;
+  disabled_datasets?: Record<string, DatasetConfig>;
+  discovered_datasets?: Record<string, DatasetConfig>;
+}
+
+interface TrackingData {
+  tracking?: Record<string, TrackingInfo>;
+}
+
 // Chemins vers les fichiers de configuration
 const TRACKING_FILE = path.join(process.cwd(), 'config', 'download-tracking.json');
 const CONFIG_FILE = path.join(process.cwd(), 'config', 'datasets-status.json');
@@ -30,20 +60,20 @@ export async function GET() {
     const processedKeys = new Set<string>(); // Pour éviter les doublons
     
     // Lire la configuration des datasets
-    let configData: any = {};
+    let configData: ConfigData = {};
     try {
       const configContent = await fs.readFile(CONFIG_FILE, 'utf-8');
       configData = JSON.parse(configContent);
-    } catch (err) {
+    } catch {
       console.warn('Fichier de configuration datasets non trouvé, utilisation du tracking uniquement');
     }
     
     // Lire le fichier de tracking pour les informations de téléchargement
-    let trackingData: any = { tracking: {} };
+    let trackingData: TrackingData = { tracking: {} };
     try {
       const trackingContent = await fs.readFile(TRACKING_FILE, 'utf-8');
       trackingData = JSON.parse(trackingContent);
-    } catch (err) {
+    } catch {
       console.warn('Fichier de tracking non trouvé');
     }
     
@@ -53,7 +83,7 @@ export async function GET() {
         if (processedKeys.has(datasetKey)) continue; // Éviter les doublons
         processedKeys.add(datasetKey);
         
-        const config = datasetConfig as any;
+        const config = datasetConfig as DatasetConfig;
         const trackingInfo = trackingData.tracking?.[datasetKey] || {};
         
         const dataset: Dataset = {
@@ -66,7 +96,7 @@ export async function GET() {
           auto_download: config.auto_download || false,
           default_display: config.default_display || false,
           last_download: trackingInfo.last_download || config.re_enabled_date,
-          status: trackingInfo.total_images_downloaded > 0 ? 'downloaded' : 'available',
+          status: (trackingInfo.total_images_downloaded || 0) > 0 ? 'downloaded' : 'available',
           total_images: trackingInfo.total_images_downloaded || 0,
           description: config.description || `${config.satellite} ${config.sector} ${config.product} ${config.resolution}`
         };
@@ -81,14 +111,14 @@ export async function GET() {
         if (processedKeys.has(datasetKey)) continue; // Éviter les doublons
         processedKeys.add(datasetKey);
         
-        const config = datasetConfig as any;
+        const config = datasetConfig as DatasetConfig;
         const trackingInfo = trackingData.tracking?.[datasetKey] || {};
         
         // Déterminer le status : 'error' seulement s'il y a une raison explicite de désactivation
         let status: Dataset['status'] = 'available';
         if (config.disabled_reason && config.disabled_reason.includes('inactive')) {
           status = 'error';
-        } else if (trackingInfo.total_images_downloaded > 0) {
+        } else if ((trackingInfo.total_images_downloaded || 0) > 0) {
           status = 'downloaded';
         }
         
@@ -118,7 +148,7 @@ export async function GET() {
         if (processedKeys.has(datasetKey)) continue; // Éviter les doublons
         processedKeys.add(datasetKey);
         
-        const config = datasetConfig as any;
+        const config = datasetConfig as DatasetConfig;
         
         const dataset: Dataset = {
           key: datasetKey,
@@ -144,7 +174,7 @@ export async function GET() {
         if (processedKeys.has(datasetKey)) continue; // Éviter les doublons
         processedKeys.add(datasetKey);
         
-        const info = datasetInfo as any;
+        const info = datasetInfo as TrackingInfo;
         const datasetConfig = info.dataset_info || {};
         
         const dataset: Dataset = {
@@ -156,7 +186,7 @@ export async function GET() {
           enabled: datasetConfig.enabled || false,
           auto_download: datasetConfig.auto_download || false,
           last_download: info.last_download,
-          status: info.total_images_downloaded > 0 ? 'downloaded' : 'available',
+          status: (info.total_images_downloaded || 0) > 0 ? 'downloaded' : 'available',
           total_images: info.total_images_downloaded || 0
         };
         

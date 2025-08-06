@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { useState as usePopoverState } from 'react';
 
 interface SatelliteDataset {
   key: string;
@@ -24,13 +23,12 @@ interface VideoPlayerProps {
 }
 
 
-export default function VideoPlayer({ fromDate, toDate, selectedDataset }: VideoPlayerProps) {
+export default function VideoPlayer({ fromDate, toDate, selectedDataset, className }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<any>(null);
+  const hlsRef = useRef<unknown>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [availablePlaylists, setAvailablePlaylists] = useState<string[]>([]);
   const [playbackRate, setPlaybackRate] = useState(1);
 
   const formattedFromDate = useMemo(() => fromDate.toISOString().split('T')[0], [fromDate]);
@@ -109,7 +107,7 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset }: Video
           
           // Cleanup previous instance
           if (hlsRef.current) {
-            hlsRef.current.destroy();
+            (hlsRef.current as { destroy: () => void }).destroy();
           }
 
           const hls = new Hls({
@@ -125,52 +123,56 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset }: Video
           hlsRef.current = hls;
 
           // Essential event listeners
-          hls.on(Hls.Events.MANIFEST_PARSED, (event: any, data: any) => {
+          hls.on(Hls.Events.MANIFEST_PARSED, (event: string, data: unknown) => {
+            const eventData = data as { levels?: unknown[]; totalduration?: number };
             console.log('✅ Manifest parsed successfully:', {
-              levels: data.levels?.length || 0,
-              duration: data.totalduration
+              levels: eventData.levels?.length || 0,
+              duration: eventData.totalduration
             });
             setIsLoading(false);
             // Appliquer la vitesse de lecture après parsing
             if (video) video.playbackRate = playbackRate;
           });
 
-          hls.on(Hls.Events.LEVEL_LOADED, (event: any, data: any) => {
+          hls.on(Hls.Events.LEVEL_LOADED, (event: string, data: unknown) => {
+            const eventData = data as { level?: number; details?: { fragments?: unknown[]; totalduration?: number } };
             console.log('✅ Level loaded:', {
-              level: data.level,
-              fragments: data.details?.fragments?.length || 0,
-              duration: data.details?.totalduration || 0
+              level: eventData.level,
+              fragments: eventData.details?.fragments?.length || 0,
+              duration: eventData.details?.totalduration || 0
             });
           });
 
-          hls.on(Hls.Events.FRAG_LOADED, (event: any, data: any) => {
+          hls.on(Hls.Events.FRAG_LOADED, (event: string, data: unknown) => {
+            const eventData = data as { frag?: { url?: string; duration?: number } };
             console.log('✅ Fragment loaded:', {
-              url: data.frag?.url,
-              duration: data.frag?.duration
+              url: eventData.frag?.url,
+              duration: eventData.frag?.duration
             });
           });
 
-          hls.on(Hls.Events.ERROR, (event: any, data: any) => {
+          hls.on(Hls.Events.ERROR, (event: string, data: unknown) => {
+            const eventData = data as { type?: string; details?: string; fatal?: boolean; url?: string };
             console.error('❌ HLS Error:', {
-              type: data.type,
-              details: data.details,
-              fatal: data.fatal,
-              url: data.url
+              type: eventData.type,
+              details: eventData.details,
+              fatal: eventData.fatal,
+              url: eventData.url
             });
             
-            if (data.fatal) {
-              switch (data.type) {
+            if (eventData.fatal) {
+              switch (eventData.type) {
                 case Hls.ErrorTypes.NETWORK_ERROR:
                   console.log('🔄 Fatal network error, trying to recover...');
                   // Check if it's a 404 or empty playlist
-                  if (data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR) {
+                  if (eventData.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR) {
                     setError(`Aucune vidéo disponible pour la période du ${fromDate.toLocaleDateString('fr-FR')} au ${toDate.toLocaleDateString('fr-FR')}`);
                     setIsLoading(false);
                     return;
                   }
                   setTimeout(() => {
                     if (hlsRef.current) {
-                      hlsRef.current.startLoad();
+                      (hlsRef.current as { startLoad: () => void }).startLoad();
                     }
                   }, 2000);
                   break;
@@ -178,12 +180,12 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset }: Video
                   console.log('🔄 Fatal media error, trying to recover...');
                   setTimeout(() => {
                     if (hlsRef.current) {
-                      hlsRef.current.recoverMediaError();
+                      (hlsRef.current as { recoverMediaError: () => void }).recoverMediaError();
                     }
                   }, 2000);
                   break;
                 default:
-                  setError(`Erreur de lecture: ${data.details}`);
+                  setError(`Erreur de lecture: ${eventData.details}`);
                   setIsLoading(false);
                   break;
               }
@@ -256,7 +258,7 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset }: Video
     return () => {
       console.log('🧹 Cleaning up VideoPlayer');
       if (hlsRef.current) {
-        hlsRef.current.destroy();
+        (hlsRef.current as { destroy: () => void }).destroy();
         hlsRef.current = null;
       }
     };
@@ -279,7 +281,7 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset }: Video
   }
 
   return (
-    <div className={`w-full h-full relative rounded-2xl ${arguments[0].className ?? ''}`}>
+    <div className={`w-full h-full relative rounded-2xl ${className ?? ''}`}>
       <div className="relative w-full h-full">
         <video
           ref={videoRef}
@@ -293,7 +295,7 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset }: Video
         </video>
         {/* Bouton jauge minimaliste en haut à droite */}
         <div className="absolute top-4 right-4 z-20">
-          <SpeedPopover playbackRate={playbackRate} setPlaybackRate={setPlaybackRate} minimal />
+          <SpeedPopover playbackRate={playbackRate} setPlaybackRate={setPlaybackRate} />
         </div>
       </div>
       {isLoading && (
@@ -313,13 +315,13 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset }: Video
 }
 
 // Composant popover pour la sélection de vitesse
-function SpeedPopover({ playbackRate, setPlaybackRate, minimal }: { playbackRate: number, setPlaybackRate: (v: number) => void, minimal?: boolean }) {
+function SpeedPopover({ playbackRate, setPlaybackRate }: { playbackRate: number, setPlaybackRate: (v: number) => void, minimal?: boolean }) {
   const [open, setOpen] = useState(false);
   const rates = [0.1, 0.25, 0.5, 1, 1.5, 2, 5, 10];
   // Pour fermer le menu si clic ailleurs
   useEffect(() => {
     if (!open) return;
-    const close = (e: MouseEvent) => {
+    const close = () => {
       setOpen(false);
     };
     window.addEventListener('click', close);

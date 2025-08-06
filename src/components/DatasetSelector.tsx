@@ -2,27 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Box,
-  Typography,
-  Chip,
-  Paper,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  FormControlLabel,
-  Radio,
-  RadioGroup
-} from '@mui/material';
-import {
-  ExpandMore as ExpandMoreIcon,
-  Satellite as SatelliteIcon,
-  Public as PublicIcon,
-  Visibility as VisibilityIcon,
-  HighQuality as QualityIcon
+  Satellite as SatelliteIcon
 } from '@mui/icons-material';
 import PublishedImagesPanel from './PublishedImagesPanel';
 
@@ -37,6 +17,18 @@ interface SatelliteDataset {
   status: 'available' | 'downloaded' | 'processing' | 'error';
   playlist_url?: string;
   file_size?: number;
+}
+
+interface PlaylistItem {
+  satellite: string;
+  sector: string;
+  product: string;
+  resolution: string;
+  date: string;
+  playlist_url: string;
+  segments: number;
+  duration: number;
+  file_size: number;
 }
 
 interface DatasetSelectorProps {
@@ -97,7 +89,7 @@ export default function DatasetSelector({ onDatasetSelect, selectedDataset }: Da
       
       // Associer les playlists aux datasets
       const datasetsWithPlaylists = activeDatasets.map((dataset: SatelliteDataset) => {
-        const playlist = playlistData.playlists.find((p: any) => 
+        const playlist = playlistData.playlists.find((p: PlaylistItem) => 
           p.satellite === dataset.satellite &&
           p.sector === dataset.sector &&
           p.product === dataset.product &&
@@ -151,22 +143,6 @@ export default function DatasetSelector({ onDatasetSelect, selectedDataset }: Da
     onDatasetSelect(dataset);
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'downloaded': return <VisibilityIcon color="success" fontSize="small" />;
-      case 'processing': return <QualityIcon color="info" fontSize="small" />;
-      case 'error': return <VisibilityIcon color="error" fontSize="small" />;
-      default: return <VisibilityIcon color="disabled" fontSize="small" />;
-    }
-  };
-
-  const getResolutionColor = (resolution: string) => {
-    if (resolution.includes('600')) return 'success';
-    if (resolution.includes('1200')) return 'warning';
-    if (resolution.includes('1800')) return 'error';
-    return 'default';
-  };
-
   if (loading) {
     return (
       <div className="rounded-xl p-4">
@@ -187,7 +163,7 @@ export default function DatasetSelector({ onDatasetSelect, selectedDataset }: Da
     return (
       <div className="rounded-xl p-4">
         <div className="text-sm text-gray-400 text-center">
-          Aucun dataset activé. Activez des datasets dans l'onglet <span className="text-purple-400">🛰️ Datasets</span>.
+          Aucun dataset activé. Activez des datasets dans l&apos;onglet <span className="text-purple-400">🛰️ Datasets</span>.
         </div>
       </div>
     );

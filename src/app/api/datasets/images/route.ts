@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+interface SourceParams {
+  satellite: string;
+  sector: string;
+  product: string;
+  resolution: string;
+}
+
+interface ImageResult {
+  name: string;
+  url: string;
+  date?: string;
+}
+
 // Map des sources connues (à étendre facilement)
-const SOURCES: Record<string, (params: any) => { url: string; parser: (html: string) => Array<{ name: string; url: string; date?: string }> }> = {
+const SOURCES: Record<string, (params: SourceParams) => { url: string; parser: (html: string) => Array<ImageResult> }> = {
   'NOAA': ({ satellite, sector, product, resolution }) => {
     // Mutualisation de la logique Bash :
     // Si secteur CONUS, FD ou MESO* => .../ABI/$SECTOR_UPPER/$product/

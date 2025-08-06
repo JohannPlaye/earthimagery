@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { DateRange } from 'react-date-range';
 import { Button, Alert, CircularProgress } from '@mui/material';
 import { fr } from 'date-fns/locale';
@@ -8,10 +8,15 @@ import 'react-date-range/dist/styles.css';
 import 'react-date-range/dist/theme/default.css';
 
 interface DateSelectorProps {
-  onDateRangeSelect: (from: string, to: string) => void;
-  onPreviewInfo: (info: PlaylistInfo) => void;
+  onDateRangeSelect: (range: { startDate: Date; endDate: Date }) => void;
+  onPreviewInfo?: (info: PlaylistInfo | null) => void;
   isLoading?: boolean;
-  defaultDateRange?: [string, string];
+}
+
+interface SelectionRange {
+  startDate: Date;
+  endDate: Date;
+  key: string;
 }
 
 interface PlaylistInfo {
@@ -29,34 +34,18 @@ function validateDateRange(range: { startDate: Date; endDate: Date }) {
   return null;
 }
 
-function formatDateLocal(date: Date) {
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
 export default function DateSelector({
   onDateRangeSelect,
-  onPreviewInfo,
   isLoading = false,
-  defaultDateRange,
   children,
 }: React.PropsWithChildren<DateSelectorProps>) {
-  const [range, setRange] = useState({
-    startDate: defaultDateRange?.[0] ? new Date(defaultDateRange[0]) : new Date(),
-    endDate: defaultDateRange?.[1] ? new Date(defaultDateRange[1]) : new Date(),
+  const [range, setRange] = useState<SelectionRange>({
+    startDate: new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000), // 7 jours avant
+    endDate: new Date(),
     key: "selection",
   });
   const [error, setError] = useState<string | null>(null);
-  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [previewInfo, setPreviewInfo] = useState<PlaylistInfo | null>(null);
-
-  // Simule le chargement côté client
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const handleQuickSelect = (days: number) => {
     const today = new Date();
@@ -64,29 +53,6 @@ export default function DateSelector({
     setRange({ startDate, endDate: today, key: "selection" });
     setError(null);
     setPreviewInfo(null);
-  };
-
-  const handlePreview = async () => {
-    setIsPreviewLoading(true);
-    try {
-      const validationError = validateDateRange(range);
-      if (validationError) {
-        setError(validationError);
-        return;
-      }
-      setError(null);
-      // Simule une requête d'aperçu
-      const info: PlaylistInfo = {
-        availableDays: Math.round((range.endDate.getTime() - range.startDate.getTime()) / (1000 * 3600 * 24)) + 1,
-        totalSegments: Math.round((range.endDate.getTime() - range.startDate.getTime()) / (1000 * 3600 * 24)) * 24,
-        estimatedDurationSeconds: Math.round((range.endDate.getTime() - range.startDate.getTime()) / (1000 * 3600 * 24)) * 24 * 10,
-        estimatedDurationFormatted: `${Math.round((range.endDate.getTime() - range.startDate.getTime()) / (1000 * 3600 * 24)) * 4} min`,
-      };
-      setPreviewInfo(info);
-      onPreviewInfo(info);
-    } finally {
-      setIsPreviewLoading(false);
-    }
   };
 
   const handleGenerate = () => {
@@ -100,15 +66,15 @@ export default function DateSelector({
     startDateCorrected.setDate(startDateCorrected.getDate() + 1);
     const endDateInclusive = new Date(range.endDate);
     endDateInclusive.setDate(endDateInclusive.getDate() + 1);
-    onDateRangeSelect(
-      formatDateLocal(startDateCorrected),
-      formatDateLocal(endDateInclusive)
-    );
+    onDateRangeSelect({
+      startDate: startDateCorrected,
+      endDate: endDateInclusive
+    });
   };
 
   return (
     <div className="w-full space-y-4">
-      <h3 className="text-lg font-semibold text-purple-300">📅 Période d'observation</h3>
+      <h3 className="text-lg font-semibold text-purple-300">📅 Période d&apos;observation</h3>
       {/* Sélecteurs rapides */}
       <div>
         <p className="text-sm font-medium text-gray-300 mb-2">Sélections rapides:</p>
@@ -145,8 +111,9 @@ export default function DateSelector({
         <div className="w-full flex justify-center">
           <DateRange
             ranges={[range]}
-            onChange={(item: any) => {
-              setRange(item.selection);
+            onChange={(ranges) => {
+              const selection = ranges.selection as SelectionRange;
+              setRange(selection);
               setError(null);
               setPreviewInfo(null);
             }}

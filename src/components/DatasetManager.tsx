@@ -6,19 +6,12 @@ import {
   CardContent, 
   Typography, 
   Switch, 
-  FormControlLabel,
-  Chip,
   Box,
   Button,
   LinearProgress,
-  Alert,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Grid
+  Alert
 } from '@mui/material';
 import { 
-  ExpandMore as ExpandMoreIcon,
   Satellite as SatelliteIcon,
   Download as DownloadIcon,
   CheckCircle as CheckCircleIcon,
@@ -51,7 +44,6 @@ interface DatasetsByCategory {
 
 export default function DatasetManager() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
-  const [defaultDisplayKey, setDefaultDisplayKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,8 +59,6 @@ export default function DatasetManager() {
       const data = await response.json();
       setDatasets(data.datasets || []);
       // Trouver le dataset par défaut
-      const defaultDs = (data.datasets || []).find((ds: Dataset) => ds.default_display);
-      setDefaultDisplayKey(defaultDs ? defaultDs.key : null);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur inconnue');
@@ -241,15 +231,6 @@ export default function DatasetManager() {
     }
   };
 
-  const getStatusColor = (status: Dataset['status']) => {
-    switch (status) {
-      case 'downloaded': return 'success';
-      case 'processing': return 'info';
-      case 'error': return 'error';
-      default: return 'default';
-    }
-  };
-
   const formatFileSize = (bytes: number | undefined) => {
     if (!bytes) return '';
     const mb = bytes / (1024 * 1024);
@@ -389,7 +370,7 @@ export default function DatasetManager() {
 
       {datasets.length === 0 && !loading && (
         <div className="bg-[#232347] rounded-lg p-4 text-center text-gray-400">
-          Aucun dataset disponible. Cliquez sur "Scanner" pour découvrir les datasets.
+          Aucun dataset disponible. Cliquez sur &quot;Scanner&quot; pour découvrir les datasets.
         </div>
       )}
     

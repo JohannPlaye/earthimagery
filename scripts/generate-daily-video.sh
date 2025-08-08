@@ -112,6 +112,7 @@ generate_video_for_dataset() {
     if ffmpeg -hide_banner -y \
         -f concat \
         -safe 0 \
+        -threads 2 \
         -i <(sed 's/^/file /' "$images_list") \
         -r "$VIDEO_FPS" \
         -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2,format=yuv420p" \

@@ -130,16 +130,6 @@
       "description": "GOES-18 Pacific Southwest GEOCOLOR 600x600",
       "default_display": false
     },
-    "GOES18.FD.GEOCOLOR.10848x10848": {
-      "satellite": "GOES18",
-      "sector": "FD",
-      "product": "GEOCOLOR",
-      "resolution": "10848x10848",
-      "auto_download": false,
-      "status": "available",
-      "description": "GOES-18 Full Disk GEOCOLOR 10848x10848 (Ultra High Resolution)",
-      "default_display": false
-    },
     "GOES18.sea.GEOCOLOR.600x600": {
       "satellite": "GOES18",
       "sector": "sea",
@@ -148,6 +138,16 @@
       "auto_download": false,
       "status": "available",
       "description": "GOES-18 Southeast Alaska GEOCOLOR 600x600",
+      "default_display": false
+    },
+    "GOES18.FD.GEOCOLOR.10848x10848": {
+      "satellite": "GOES18",
+      "sector": "FD",
+      "product": "GEOCOLOR",
+      "resolution": "10848x10848",
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-18 Full Disk GEOCOLOR 10848x10848 (Ultra High Resolution)",
       "default_display": false
     }
   },
@@ -228,5 +228,5 @@
   "total_discovered": 18,
   "last_discovery": "2025-07-30T01:00:00Z",
   "last_updated": "2025-07-30T01:00:00Z",
-  "last_update": "2025-08-03T23:22:38+02:00"
+  "last_update": "2025-08-08T16:08:33+02:00"
 }

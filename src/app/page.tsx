@@ -6,6 +6,7 @@ import VideoPlayer from '@/components/VideoPlayer';
 import DatasetManager from '@/components/DatasetManager';
 import DatasetSelector from '@/components/DatasetSelector';
 import LoginModal from '@/components/LoginModal';
+import LogTerminal from '@/components/LogTerminal';
 import NoSSR from '@/components/NoSSR';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { Button } from '@mui/material';
@@ -53,6 +54,7 @@ function HomeContent() {
   const [selectedDataset, setSelectedDataset] = useState<SatelliteDataset | null>(null);
   const [selectedDateRange, setSelectedDateRange] = useState<[Date, Date]>([yesterday, today]);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showTerminal, setShowTerminal] = useState(false);
 
   // Gestion des changements de dates
   function handleDateRangeSelect(range: { startDate: Date; endDate: Date }) {
@@ -62,6 +64,12 @@ function HomeContent() {
   function handlePreviewInfo(_: PreviewInfo | null) {
     // Cette fonction peut être retirée si elle n'est plus nécessaire
   }
+
+  // Gestion du clic sur l'onglet Paramètres
+  const handleParametersTabClick = () => {
+    setActiveTab(0);
+    setShowTerminal(false); // Désactiver le terminal et revenir au player
+  };
 
   // Gestion de l'accès aux datasets
   const handleDatasetTabClick = () => {
@@ -128,7 +136,7 @@ function HomeContent() {
           <div className="flex flex-row gap-2 mb-0">
             <button
               className={`flex-1 py-2 px-4 font-semibold rounded-t-lg focus:outline-none transition-colors duration-150 ${activeTab === 0 ? 'text-sm border-b-4 border-purple-400 text-purple-200 bg-[#232336]' : 'text-sm text-purple-400 bg-transparent'}`}
-              onClick={() => setActiveTab(0)}
+              onClick={handleParametersTabClick}
               type="button"
             >
               ⚙️ Paramètres
@@ -169,7 +177,7 @@ function HomeContent() {
               <div className="mt-2">
                 <div className="bg-[#101828] rounded-xl p-4">
                   {hasPermission('dataset_view') ? (
-                    <DatasetManager />
+                    <DatasetManager onToggleTerminal={setShowTerminal} />
                   ) : (
                     <div className="text-center py-8">
                       <div className="text-6xl mb-4">🔒</div>
@@ -199,14 +207,35 @@ function HomeContent() {
         {/* Player central */}
         <section className="w-5/6 flex items-center justify-center bg-[#181820] h-screen">
           <div className="h-full w-full flex items-center justify-center p-[25px]">
-            <NoSSR fallback={<div>Chargement du player...</div>}>
-              <VideoPlayer
-                fromDate={selectedDateRange[0]}
-                toDate={selectedDateRange[1]}
-                selectedDataset={selectedDataset}
-                className="h-full w-full"
-              />
-            </NoSSR>
+            {showTerminal ? (
+              <div className="h-full w-full bg-[#101828] rounded-xl overflow-hidden">
+                <div className="h-full p-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-semibold text-purple-300">📟 Terminal de logs</h2>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => setShowTerminal(false)}
+                      sx={{ color: '#a78bfa', borderColor: '#a78bfa' }}
+                    >
+                      ← Retour au player
+                    </Button>
+                  </div>
+                  <div className="h-[calc(100%-4rem)]">
+                    <LogTerminal />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <NoSSR fallback={<div>Chargement du player...</div>}>
+                <VideoPlayer
+                  fromDate={selectedDateRange[0]}
+                  toDate={selectedDateRange[1]}
+                  selectedDataset={selectedDataset}
+                  className="h-full w-full"
+                />
+              </NoSSR>
+            )}
           </div>
         </section>
       </main>

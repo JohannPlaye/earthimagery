@@ -16,8 +16,14 @@ import {
   Download as DownloadIcon,
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  Terminal as TerminalIcon
 } from '@mui/icons-material';
+import { useAuth } from '@/contexts/AuthContext';
+
+interface DatasetManagerProps {
+  onToggleTerminal?: (show: boolean) => void;
+}
 
 interface Dataset {
   key: string;
@@ -42,7 +48,8 @@ interface DatasetsByCategory {
   };
 }
 
-export default function DatasetManager() {
+export default function DatasetManager({ onToggleTerminal }: DatasetManagerProps) {
+  const { hasPermission } = useAuth();
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -274,6 +281,18 @@ export default function DatasetManager() {
           >
             <DownloadIcon />
           </Button>
+          {/* Bouton Terminal pour les administrateurs */}
+          {hasPermission('dataset_manage') && onToggleTerminal && (
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => onToggleTerminal(true)}
+              sx={{ color: '#10b981', borderColor: '#10b981', minWidth: 0, padding: '6px' }}
+              title="Afficher le terminal de logs dans le player principal"
+            >
+              <TerminalIcon />
+            </Button>
+          )}
         </div>
       </div>
       <div className="flex gap-4 mb-2 text-xs">

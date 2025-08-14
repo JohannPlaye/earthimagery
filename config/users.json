@@ -1,0 +1,22 @@
+{
+  "users": [
+    {
+      "id": "Johann",
+      "username": "Johann",
+      "password": "$2b$10$w8NeXWWVx/w1loclsDKXF.kpv.tTyb9ED5Kh.IxAARQmpPTMw1zY.",
+      "role": "admin",
+      "permissions": ["dataset_manage", "dataset_view"]
+    },
+    {
+      "id": "viewer",
+      "username": "viewer", 
+      "password": "$2b$10$tESt123456789abcdef.uQGQj3QK9P2XqYqGQV2HQ/qgxvP2TUvlc",
+      "role": "viewer",
+      "permissions": ["dataset_view"]
+    }
+  ],
+  "config": {
+    "session_duration_hours": 24,
+    "require_auth_for": ["dataset_manage", "dataset_view"]
+  }
+}

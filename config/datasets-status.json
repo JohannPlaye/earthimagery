@@ -101,16 +101,6 @@
       "resolution": "1250x750",
       "default_display": false
     },
-    "GOES18.CONUS.GEOCOLOR.10000x6000": {
-      "satellite": "GOES18",
-      "sector": "CONUS",
-      "product": "GEOCOLOR",
-      "resolution": "10000x6000",
-      "auto_download": false,
-      "status": "available",
-      "description": "GOES-18 CONUS GEOCOLOR 10000x6000 (Ultra High Resolution)",
-      "default_display": false
-    },
     "GOES19.CONUS.GEOCOLOR.1250x750": {
       "auto_download": false,
       "description": "GOES-19 CONUS GEOCOLOR 1250x750",
@@ -148,6 +138,16 @@
       "auto_download": false,
       "status": "available",
       "description": "GOES-18 Full Disk GEOCOLOR 10848x10848 (Ultra High Resolution)",
+      "default_display": false
+    },
+    "GOES18.CONUS.GEOCOLOR.10000x6000": {
+      "satellite": "GOES18",
+      "sector": "CONUS",
+      "product": "GEOCOLOR",
+      "resolution": "10000x6000",
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-18 CONUS GEOCOLOR 10000x6000 (Ultra High Resolution)",
       "default_display": false
     }
   },
@@ -228,5 +228,5 @@
   "total_discovered": 18,
   "last_discovery": "2025-07-30T01:00:00Z",
   "last_updated": "2025-07-30T01:00:00Z",
-  "last_update": "2025-08-08T16:08:33+02:00"
+  "last_update": "2025-08-13T00:31:48+02:00"
 }

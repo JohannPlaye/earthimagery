@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
+import { getAuthenticatedUser, hasPermission } from '@/lib/auth-middleware';
 
 interface Config {
   enabled_datasets?: Record<string, unknown>;
@@ -25,6 +26,15 @@ const VALIDATION_SCRIPT = path.join(process.cwd(), 'scripts', 'validate-datasets
 
 export async function POST(request: NextRequest) {
   try {
+    // Vérification de l'authentification
+    const user = await getAuthenticatedUser(request);
+    if (!user || !hasPermission(user, 'dataset_manage')) {
+      return NextResponse.json(
+        { success: false, error: 'Accès non autorisé' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { action = 'validate' } = body; // 'validate' ou 'discover'
 

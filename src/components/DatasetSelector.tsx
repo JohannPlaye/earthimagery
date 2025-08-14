@@ -250,8 +250,7 @@ export default function DatasetSelector({ onDatasetSelect, selectedDataset }: Da
                                       <span className={`w-2 h-2 rounded-full inline-block ${dataset.status === 'downloaded' ? 'bg-green-400' : dataset.status === 'processing' ? 'bg-blue-400' : dataset.status === 'error' ? 'bg-red-400' : 'bg-gray-500'}`}></span>
                                     </td>
                                     <td className="px-1 py-1 text-gray-200 w-full align-middle text-center" title="Résolution spatiale du dataset (ex: 600, 1200, 1800)">{dataset.resolution}</td>
-                                    {/* Bouton popup images masqué */}
-                                    {/* <td className="p-0 w-6 min-w-[24px] max-w-[28px] align-middle text-center" title="Voir les images sources du dataset">
+                                    {<td className="p-0 w-6 min-w-[24px] max-w-[28px] align-middle text-center" title="Voir les images sources du dataset">
                                       <button
                                         type="button"
                                         className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#312e4f] hover:bg-purple-700 text-purple-300"
@@ -260,7 +259,7 @@ export default function DatasetSelector({ onDatasetSelect, selectedDataset }: Da
                                       >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
                                       </button>
-                                    </td> */}
+                                    </td>}
                                     {/* Indicateurs d'automatisation et disponibilité masqués */}
                                     {/* <td className="px-1 py-1 w-16 min-w-[40px] max-w-[80px] align-middle text-center" title="Indicateurs d'automatisation et disponibilité du dataset">
                                       {dataset.auto_download && (

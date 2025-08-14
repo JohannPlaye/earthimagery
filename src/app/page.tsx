@@ -5,7 +5,10 @@ import DateSelector from '@/components/DateSelector';
 import VideoPlayer from '@/components/VideoPlayer';
 import DatasetManager from '@/components/DatasetManager';
 import DatasetSelector from '@/components/DatasetSelector';
+import LoginModal from '@/components/LoginModal';
 import NoSSR from '@/components/NoSSR';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { Button } from '@mui/material';
 
 interface PreviewInfo {
   availableDays: number;
@@ -29,6 +32,15 @@ interface SatelliteDataset {
 }
 
 export default function Home() {
+  return (
+    <AuthProvider>
+      <HomeContent />
+    </AuthProvider>
+  );
+}
+
+function HomeContent() {
+  const { user, isAuthenticated, logout, hasPermission } = useAuth();
   // Utilitaires pour la date
   function toDateOnly(d: Date) {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -40,6 +52,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState(0);
   const [selectedDataset, setSelectedDataset] = useState<SatelliteDataset | null>(null);
   const [selectedDateRange, setSelectedDateRange] = useState<[Date, Date]>([yesterday, today]);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   // Gestion des changements de dates
   function handleDateRangeSelect(range: { startDate: Date; endDate: Date }) {
@@ -49,6 +62,20 @@ export default function Home() {
   function handlePreviewInfo(_: PreviewInfo | null) {
     // Cette fonction peut être retirée si elle n'est plus nécessaire
   }
+
+  // Gestion de l'accès aux datasets
+  const handleDatasetTabClick = () => {
+    if (!hasPermission('dataset_view')) {
+      setShowLoginModal(true);
+    } else {
+      setActiveTab(1);
+    }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    setActiveTab(0); // Retour à l'onglet principal après déconnexion
+  };
 
   // Charger le dataset par défaut au montage
   useEffect(() => {
@@ -71,6 +98,32 @@ export default function Home() {
             <h1 className="text-3xl font-bold text-purple-400 tracking-wide mb-2">EarthImagery</h1>
             <span className="text-base text-purple-300">Earth on your screen</span>
           </div>
+
+          {/* Indicateur de connexion */}
+          {isAuthenticated && (
+            <div className="mb-4 p-2 bg-green-900/30 border border-green-700 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="text-xs">
+                  <div className="text-green-400 font-medium">✓ Connecté</div>
+                  <div className="text-green-300">{user?.username} ({user?.role})</div>
+                </div>
+                <Button
+                  size="small"
+                  onClick={handleLogout}
+                  sx={{
+                    color: '#ef4444',
+                    fontSize: '10px',
+                    minWidth: 'auto',
+                    padding: '2px 6px',
+                    '&:hover': { backgroundColor: '#7f1d1d' }
+                  }}
+                >
+                  Logout
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Tabs horizontaux personnalisés */}
           <div className="flex flex-row gap-2 mb-0">
             <button
@@ -81,11 +134,14 @@ export default function Home() {
               ⚙️ Paramètres
             </button>
             <button
-              className={`flex-1 py-2 px-4 font-semibold rounded-t-lg focus:outline-none transition-colors duration-150 ${activeTab === 1 ? 'text-sm border-b-4 border-purple-400 text-purple-200 bg-[#232336]' : 'text-sm text-purple-400 bg-transparent'}`}
-              onClick={() => setActiveTab(1)}
+              className={`flex-1 py-2 px-4 font-semibold rounded-t-lg focus:outline-none transition-colors duration-150 relative ${activeTab === 1 ? 'text-sm border-b-4 border-purple-400 text-purple-200 bg-[#232336]' : 'text-sm text-purple-400 bg-transparent'}`}
+              onClick={handleDatasetTabClick}
               type="button"
             >
               🛰️ Datasets
+              {!hasPermission('dataset_view') && (
+                <span className="absolute -top-1 -right-1 text-xs">🔒</span>
+              )}
             </button>
           </div>
           <div className="mt-6 flex-1 overflow-y-auto">
@@ -112,7 +168,29 @@ export default function Home() {
             {activeTab === 1 && (
               <div className="mt-2">
                 <div className="bg-[#101828] rounded-xl p-4">
-                  <DatasetManager />
+                  {hasPermission('dataset_view') ? (
+                    <DatasetManager />
+                  ) : (
+                    <div className="text-center py-8">
+                      <div className="text-6xl mb-4">🔒</div>
+                      <h3 className="text-lg font-semibold text-purple-300 mb-2">
+                        Accès restreint
+                      </h3>
+                      <p className="text-gray-400 mb-4">
+                        Vous devez être connecté pour accéder à la gestion des datasets.
+                      </p>
+                      <Button
+                        variant="contained"
+                        onClick={() => setShowLoginModal(true)}
+                        sx={{
+                          backgroundColor: '#7c3aed',
+                          '&:hover': { backgroundColor: '#6d28d9' }
+                        }}
+                      >
+                        Se connecter
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -145,6 +223,13 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      {/* Modal de connexion */}
+      <LoginModal
+        open={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onSuccess={() => setActiveTab(1)}
+      />
     </div>
   );
 }

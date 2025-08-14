@@ -3,6 +3,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
+import { getAuthenticatedUser, hasPermission } from '@/lib/auth-middleware';
 
 interface DatasetConfig {
   satellite: string;
@@ -26,6 +27,15 @@ const DATASET_TOGGLE_SCRIPT = path.join(process.cwd(), 'scripts', 'dataset-toggl
 
 export async function POST(request: NextRequest) {
   try {
+    // Vérification de l'authentification
+    const user = await getAuthenticatedUser(request);
+    if (!user || !hasPermission(user, 'dataset_manage')) {
+      return NextResponse.json(
+        { success: false, error: 'Accès non autorisé' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { satellite, sector, product, resolution, enabled, auto_download, download_only, setDefault } = body;
 

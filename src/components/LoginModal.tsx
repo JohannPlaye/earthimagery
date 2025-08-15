@@ -75,7 +75,7 @@ export default function LoginModal({ open, onClose, onSuccess }: LoginModalProps
           <div className="mb-6 text-center">
             <div className="text-4xl mb-2">🔐</div>
             <h2 className="text-xl font-semibold text-purple-300">Authentification requise</h2>
-            <p className="text-sm text-gray-400 mt-1">Connectez-vous pour accéder aux datasets</p>
+            <p className="text-sm text-gray-400 mt-1">Connectez-vous pour accéder au paramétrage des datasets</p>
           </div>
 
           {/* Formulaire */}
@@ -133,14 +133,14 @@ export default function LoginModal({ open, onClose, onSuccess }: LoginModalProps
           </form>
 
           {/* Informations d'aide */}
-          <div className="mt-6 p-3 bg-[#232336]/50 border border-[#2d2d44] rounded-lg">
+          {/* <div className="mt-6 p-3 bg-[#232336]/50 border border-[#2d2d44] rounded-lg">
             <div className="text-sm text-gray-400 mb-2">
               <strong className="text-purple-300">Visualisation simple des datasets :</strong>
             </div>
             <div className="text-xs text-gray-500 space-y-1">
               <div>• <strong className="text-white">viewer</strong> / <strong className="text-white">viewer</strong></div>
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>

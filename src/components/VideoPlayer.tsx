@@ -30,6 +30,8 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingStage, setLoadingStage] = useState('Initialisation...');
 
   const formattedFromDate = useMemo(() => fromDate.toISOString().split('T')[0], [fromDate]);
   const formattedToDate = useMemo(() => toDate.toISOString().split('T')[0], [toDate]);
@@ -70,6 +72,8 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
     // Try native HLS first (Safari, iOS)
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       console.log('🍎 Using native HLS support');
+      setLoadingStage('Connexion au serveur...');
+      setLoadingProgress(25);
       
       // Add error handlers for native HLS
       const handleNativeError = (e: Event) => {
@@ -80,6 +84,8 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
       
       const handleNativeLoad = () => {
         console.log('✅ Native HLS loaded');
+        setLoadingStage('Chargement terminé');
+        setLoadingProgress(100);
         setIsLoading(false);
       };
       
@@ -104,6 +110,8 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
         
         if (Hls.isSupported()) {
           console.log('📱 Using HLS.js for:', playlistUrl);
+          setLoadingStage('Chargement du lecteur...');
+          setLoadingProgress(10);
           
           // Cleanup previous instance
           if (hlsRef.current) {
@@ -129,6 +137,8 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
               levels: eventData.levels?.length || 0,
               duration: eventData.totalduration
             });
+            setLoadingStage('Préparation de la vidéo...');
+            setLoadingProgress(70);
             setIsLoading(false);
             // Appliquer la vitesse de lecture après parsing
             if (video) video.playbackRate = playbackRate;
@@ -141,6 +151,8 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
               fragments: eventData.details?.fragments?.length || 0,
               duration: eventData.details?.totalduration || 0
             });
+            setLoadingStage('Chargement des segments...');
+            setLoadingProgress(85);
           });
 
           hls.on(Hls.Events.FRAG_LOADED, (event: string, data: unknown) => {
@@ -299,8 +311,55 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
         </div>
       </div>
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-lg">
-          <div className="text-white">Chargement de la vidéo...</div>
+        <div className="absolute inset-0 flex items-center justify-center bg-[#181820] bg-opacity-90 rounded-lg backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-6">
+            {/* Indicateur circulaire */}
+            <div className="relative w-20 h-20">
+              {/* Cercle de fond */}
+              <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 80 80">
+                <circle
+                  cx="40"
+                  cy="40"
+                  r="36"
+                  stroke="#2d2d44"
+                  strokeWidth="8"
+                  fill="none"
+                />
+                {/* Cercle de progression */}
+                <circle
+                  cx="40"
+                  cy="40"
+                  r="36"
+                  stroke="#a78bfa"
+                  strokeWidth="8"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeDasharray={226.19}
+                  strokeDashoffset={226.19 - (226.19 * loadingProgress) / 100}
+                  className="transition-all duration-500 ease-out"
+                />
+              </svg>
+              {/* Pourcentage au centre */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-purple-300 font-semibold text-lg">
+                  {Math.round(loadingProgress)}%
+                </span>
+              </div>
+            </div>
+            
+            {/* Étape de chargement */}
+            <div className="text-center">
+              <div className="text-purple-300 font-medium mb-1">🛰️ Chargement de la vidéo</div>
+              <div className="text-gray-400 text-sm">{loadingStage}</div>
+            </div>
+            
+            {/* Animation de points */}
+            <div className="flex gap-1">
+              <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+              <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+              <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+            </div>
+          </div>
         </div>
       )}
       <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white p-2 rounded">

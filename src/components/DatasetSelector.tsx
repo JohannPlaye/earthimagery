@@ -176,7 +176,7 @@ export default function DatasetSelector({ onDatasetSelect, selectedDataset }: Da
         <span className="text-lg font-semibold text-purple-300">Sélection du dataset</span>
       </div>
       <div className="overflow-x-auto w-full">
-        <table className="w-full text-xs table-fixed">
+        <table className="w-full text-xs">
           <tbody>
             {Object.entries(organizedDatasets).map(([satellite, sectors]) => {
               const isSatelliteOpen = openSatellites[satellite];
@@ -184,7 +184,7 @@ export default function DatasetSelector({ onDatasetSelect, selectedDataset }: Da
                 <React.Fragment key={satellite}>
                   {/* Satellite header accordéon */}
                   <tr className="bg-[#232336] cursor-pointer select-none" onClick={() => setOpenSatellites(prev => ({ ...prev, [satellite]: !isSatelliteOpen }))}>
-                    <td colSpan={6} className="py-2 px-3 font-bold text-purple-200 border-b border-[#2d2d44]">
+                    <td colSpan={4} className="py-2 px-3 font-bold text-purple-200 border-b border-[#2d2d44]">
                       <div className="flex items-center gap-2">
                         <span>{isSatelliteOpen ? '▼' : '▶'}</span>
                         <SatelliteIcon className="text-purple-400" fontSize="small" />
@@ -207,7 +207,7 @@ export default function DatasetSelector({ onDatasetSelect, selectedDataset }: Da
                             [sector]: !isSectorOpen,
                           },
                         }))}>
-                          <td colSpan={6} className="py-1 px-4 font-semibold text-purple-400 border-b border-[#232336]">
+                          <td colSpan={4} className="py-1 px-4 font-semibold text-purple-400 border-b border-[#232336]">
                             <span>{isSectorOpen ? '▼' : '▶'}</span> 📍 {sector.toUpperCase()}
                           </td>
                         </tr>
@@ -228,7 +228,7 @@ export default function DatasetSelector({ onDatasetSelect, selectedDataset }: Da
                                   },
                                 },
                               }))}>
-                                <td colSpan={6} className="py-1 px-6 font-medium text-gray-300 border-b border-[#232336]">
+                                <td colSpan={4} className="py-1 px-6 font-medium text-gray-300 border-b border-[#232336]">
                                   <span>{isProductOpen ? '▼' : '▶'}</span> {product}
                                 </td>
                               </tr>
@@ -236,7 +236,7 @@ export default function DatasetSelector({ onDatasetSelect, selectedDataset }: Da
                               {(isProductOpen || hasActive) && datasetList.map(dataset => (
                                 <React.Fragment key={dataset.key}>
                                   <tr className={`transition ${selectedDataset?.key === dataset.key ? 'bg-[#2d2d4a]' : 'bg-transparent'} hover:bg-[#312e4f]`}>
-                                    <td className="p-0 w-4 min-w-[16px] max-w-[18px] align-middle text-center" title="Sélectionner ce dataset">
+                                    <td className="p-0 w-10 align-middle text-center" title="Sélectionner ce dataset">
                                       <input
                                         type="radio"
                                         name="dataset"
@@ -246,11 +246,11 @@ export default function DatasetSelector({ onDatasetSelect, selectedDataset }: Da
                                         className="accent-purple-500"
                                       />
                                     </td>
-                                    <td className="p-0 w-4 min-w-[16px] max-w-[18px] align-middle text-center" title="Statut du dataset (vert: prêt, bleu: traitement, rouge: erreur, gris: disponible)">
+                                    <td className="p-0 w-10 align-middle text-center" title="Statut du dataset (vert: prêt, bleu: traitement, rouge: erreur, gris: disponible)">
                                       <span className={`w-2 h-2 rounded-full inline-block ${dataset.status === 'downloaded' ? 'bg-green-400' : dataset.status === 'processing' ? 'bg-blue-400' : dataset.status === 'error' ? 'bg-red-400' : 'bg-gray-500'}`}></span>
                                     </td>
-                                    <td className="px-1 py-1 text-gray-200 w-full align-middle text-center" title="Résolution spatiale du dataset (ex: 600, 1200, 1800)">{dataset.resolution}</td>
-                                    {<td className="p-0 w-6 min-w-[24px] max-w-[28px] align-middle text-center" title="Voir les images sources du dataset">
+                                    <td className="px-3 py-2 text-gray-200 align-middle text-center font-medium" title="Résolution spatiale du dataset (ex: 600, 1200, 1800)">{dataset.resolution}</td>
+                                    <td className="p-0 w-8 align-middle text-center" title="Voir les images sources du dataset">
                                       <button
                                         type="button"
                                         className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#312e4f] hover:bg-purple-700 text-purple-300"
@@ -259,7 +259,7 @@ export default function DatasetSelector({ onDatasetSelect, selectedDataset }: Da
                                       >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
                                       </button>
-                                    </td>}
+                                    </td>
                                     {/* Indicateurs d'automatisation et disponibilité masqués */}
                                     {/* <td className="px-1 py-1 w-16 min-w-[40px] max-w-[80px] align-middle text-center" title="Indicateurs d'automatisation et disponibilité du dataset">
                                       {dataset.auto_download && (

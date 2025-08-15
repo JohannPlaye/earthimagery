@@ -139,14 +139,14 @@ function HomeContent() {
               onClick={handleParametersTabClick}
               type="button"
             >
-              ⚙️ Paramètres
+              🛰️ Paramètres
             </button>
             <button
               className={`flex-1 py-2 px-4 font-semibold rounded-t-lg focus:outline-none transition-colors duration-150 relative ${activeTab === 1 ? 'text-sm border-b-4 border-purple-400 text-purple-200 bg-[#232336]' : 'text-sm text-purple-400 bg-transparent'}`}
               onClick={handleDatasetTabClick}
               type="button"
             >
-              🛰️ Datasets
+              ⚙️ Admin
               {!hasPermission('dataset_view') && (
                 <span className="absolute -top-1 -right-1 text-xs">🔒</span>
               )}

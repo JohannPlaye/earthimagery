@@ -5,20 +5,23 @@ import path from 'path';
 
 const execAsync = promisify(exec);
 
-// Chemin vers le script de découverte
+// Chemins vers les scripts de découverte
 const DISCOVERY_SCRIPT = path.join(process.cwd(), 'scripts', 'import-all-datasets.sh');
+const SATELLITE_DISCOVERY_SCRIPT = path.join(process.cwd(), 'scripts', 'satellite-discovery.sh');
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action = 'discover' } = body; // 'discover' ou 'recommended'
+    const { action = 'discover', mode = 'standard' } = body; // action: 'discover'|'recommended', mode: 'standard'|'comprehensive'
 
-    console.log(`🔍 Découverte des datasets: ${action}`);
+    console.log(`🔍 Découverte des datasets: ${action} (mode: ${mode})`);
     
-    const command = `bash "${DISCOVERY_SCRIPT}" "${action}"`;
+    // Choisir le script selon le mode
+    const scriptPath = mode === 'comprehensive' ? SATELLITE_DISCOVERY_SCRIPT : DISCOVERY_SCRIPT;
+    const command = mode === 'comprehensive' ? `bash "${scriptPath}"` : `bash "${scriptPath}" "${action}"`;
     
     const { stdout, stderr } = await execAsync(command, {
-      timeout: 120000, // 2 minutes timeout
+      timeout: mode === 'comprehensive' ? 300000 : 120000, // 5 minutes pour comprehensive, 2 minutes pour standard
       cwd: process.cwd()
     });
 
@@ -31,18 +34,23 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({
       success: true,
-      message: `Découverte des datasets ${action} terminée`,
+      message: `Découverte ${mode} des datasets ${action} terminée`,
       output: stdout,
-      action
+      action,
+      mode
     });
 
   } catch (error) {
+    const body = await request.json().catch(() => ({}));
+    const mode = body.mode || 'standard';
+    
     console.error('Erreur lors de la découverte:', error);
     return NextResponse.json(
       { 
         success: false, 
         error: error instanceof Error ? error.message : 'Erreur lors de la découverte',
-        action: 'discovery'
+        action: 'discovery',
+        mode: mode
       },
       { status: 500 }
     );

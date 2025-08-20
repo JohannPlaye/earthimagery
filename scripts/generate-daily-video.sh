@@ -50,14 +50,21 @@ find_images_directory() {
     local dataset_key="$1"
     local date="$2"
     
-    # Conversion du dataset key en chemin: GOES18.hi.GEOCOLOR.600x600 -> GOES18/hi/GEOCOLOR/600x600
+    # Conversion du dataset key en chemin: GOES18.hi.GEOCOLOR.600x600 -> NOAA/GOES18/hi/GEOCOLOR/600x600
     IFS='.' read -ra PARTS <<< "$dataset_key"
     if [ ${#PARTS[@]} -eq 4 ]; then
         local satellite="${PARTS[0]}"
         local sector="${PARTS[1]}"
         local product="${PARTS[2]}"
         local resolution="${PARTS[3]}"
-        echo "$DATA_ROOT_PATH/$satellite/$sector/$product/$resolution/$date"
+        
+        # Satellites NOAA (GOES) vont dans NOAA/satellite/...
+        if [[ "$satellite" =~ ^GOES[0-9]+$ ]]; then
+            echo "$DATA_ROOT_PATH/NOAA/$satellite/$sector/$product/$resolution/$date"
+        else
+            # Autres satellites gardent la structure actuelle
+            echo "$DATA_ROOT_PATH/$satellite/$sector/$product/$resolution/$date"
+        fi
     else
         echo ""
     fi

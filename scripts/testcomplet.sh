@@ -48,6 +48,33 @@ log() {
     esac
 }
 
+# Fonction pour construire le chemin de données satellite avec structure NOAA
+build_satellite_data_path() {
+    local dataset_key="$1"
+    local date="$2"
+    
+    # Conversion du dataset key en chemin: GOES19.car.GEOCOLOR.4000x4000 -> NOAA/GOES19/car/GEOCOLOR/4000x4000
+    IFS='.' read -ra PARTS <<< "$dataset_key"
+    if [ ${#PARTS[@]} -eq 4 ]; then
+        local satellite="${PARTS[0]}"
+        local sector="${PARTS[1]}"
+        local product="${PARTS[2]}"
+        local resolution="${PARTS[3]}"
+        
+        # Satellites NOAA (GOES) vont dans NOAA/satellite/...
+        if [[ "$satellite" =~ ^GOES[0-9]+$ ]]; then
+            echo "$DATA_DIR/NOAA/$satellite/$sector/$product/$resolution/$date"
+        else
+            # Autres satellites gardent la structure actuelle
+            echo "$DATA_DIR/$satellite/$sector/$product/$resolution/$date"
+        fi
+    else
+        # Fallback vers l'ancienne méthode si le format n'est pas reconnu
+        local dataset_path=$(echo "$dataset_key" | tr '.' '/')
+        echo "$DATA_DIR/$dataset_path/$date"
+    fi
+}
+
 create_directories() {
     log "INFO" "Création des répertoires nécessaires..."
     mkdir -p "$DATA_DIR/logs"
@@ -193,9 +220,8 @@ download_active_datasets() {
         log "INFO" "📥 $dataset_key: ${#days_array[@]} jour(s) à télécharger"
         
         for day in "${days_array[@]}"; do
-            # Conversion dataset_key (points) -> chemin relatif (slashs)
-            local dataset_path=$(echo "$dataset_key" | tr '.' '/')
-            local images_dir="$DATA_DIR/$dataset_path/$day"
+            # Utilisation de la nouvelle fonction pour gérer la structure NOAA
+            local images_dir=$(build_satellite_data_path "$dataset_key" "$day")
             
             # Suppression des images corrompues (taille nulle) avant téléchargement
             local corrupted_count=$(find "$images_dir" -type f \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" \) -size 0 -delete -print 2>/dev/null | wc -l)
@@ -272,9 +298,8 @@ generate_daily_videos() {
         log "INFO" "🎬 $dataset_key: ${#days_array[@]} jour(s) à traiter"
         
         for day in "${days_array[@]}"; do
-            # Conversion dataset_key (points) -> chemin relatif (slashs)
-            local dataset_path=$(echo "$dataset_key" | tr '.' '/')
-            local images_dir="$DATA_DIR/$dataset_path/$day"
+            # Utilisation de la nouvelle fonction pour gérer la structure NOAA
+            local images_dir=$(build_satellite_data_path "$dataset_key" "$day")
             
             # Suppression des images corrompues (taille nulle)
             local corrupted_count=$(find "$images_dir" -type f \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" \) -size 0 -delete -print 2>/dev/null | wc -l)

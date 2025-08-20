@@ -25,6 +25,23 @@ log() {
     echo "$message" | tee -a "$LOG_FILE"
 }
 
+# Fonction pour construire le chemin de données satellite avec structure NOAA
+build_satellite_data_path() {
+    local satellite="$1"
+    local sector="$2"
+    local product="$3"
+    local resolution="$4"
+    local date="$5"
+    
+    # Satellites NOAA (GOES) vont dans NOAA/satellite/...
+    if [[ "$satellite" =~ ^GOES[0-9]+$ ]]; then
+        echo "$DATA_ROOT_PATH/NOAA/$satellite/$sector/$product/$resolution/$date"
+    else
+        # Autres satellites gardent la structure actuelle
+        echo "$DATA_ROOT_PATH/$satellite/$sector/$product/$resolution/$date"
+    fi
+}
+
 # Fonction de mise à jour du tracking
 update_tracking() {
     local dataset_key="$1"
@@ -188,7 +205,7 @@ download_dataset_images() {
             local minute=$(echo "$time" | cut -c3-4)
             
             # Créer le dossier de destination
-            local output_dir="$DATA_ROOT_PATH/$satellite/$sector/$product/$resolution/$target_date"
+            local output_dir=$(build_satellite_data_path "$satellite" "$sector" "$product" "$resolution" "$target_date")
             mkdir -p "$output_dir"
             
             # Nom de fichier de destination (format unifié)

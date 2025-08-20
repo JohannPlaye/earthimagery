@@ -14,6 +14,23 @@ log() {
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_DIR/video-auto-generation-$(date +'%Y%m%d').log"
 }
 
+# Fonction pour construire le chemin de données satellite avec structure NOAA
+build_satellite_data_path() {
+    local satellite="$1"
+    local sector="$2"
+    local product="$3"
+    local resolution="$4"
+    local date="$5"
+    
+    # Satellites NOAA (GOES) vont dans NOAA/satellite/...
+    if [[ "$satellite" =~ ^GOES[0-9]+$ ]]; then
+        echo "$SATELLITE_DATA_DIR/NOAA/$satellite/$sector/$product/$resolution/$date"
+    else
+        # Autres satellites gardent la structure actuelle
+        echo "$SATELLITE_DATA_DIR/$satellite/$sector/$product/$resolution/$date"
+    fi
+}
+
 # Créer les répertoires nécessaires
 mkdir -p "$OUTPUT_DIR" "$LOG_DIR"
 
@@ -25,7 +42,14 @@ generate_satellite_video() {
     local resolution="$4"
     local date_str="$5"  # Format: YYYY-MM-DD
     
-    local dataset_dir="$SATELLITE_DATA_DIR/$satellite/$sector/$product/$resolution"
+    # Construire le chemin avec la nouvelle logique NOAA
+    local dataset_dir
+    if [[ "$satellite" =~ ^GOES[0-9]+$ ]]; then
+        dataset_dir="$SATELLITE_DATA_DIR/NOAA/$satellite/$sector/$product/$resolution"
+    else
+        dataset_dir="$SATELLITE_DATA_DIR/$satellite/$sector/$product/$resolution"
+    fi
+    
     local dataset_key="$satellite.$sector.$product.$resolution"
     local output_date_dir="$OUTPUT_DIR/$dataset_key/$date_str"
     

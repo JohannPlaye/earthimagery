@@ -6,7 +6,7 @@
 # Version finale qui fonctionne vraiment
 # =============================================================================
 
-set -euo pipefail
+set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -46,16 +46,8 @@ add_dataset() {
     
     local dataset_id="${satellite}.${instrument}.${zone}.${product}.${resolution}"
     
-    local dataset_info="{
-        "id": "$dataset_id",
-        "satellite": "$satellite",
-        "instrument": "$instrument",
-        "sector": "$zone",
-        "product": "$product",
-        "resolution": "$resolution",
-        "discovery_method": "satellite-discovery",
-        "discovered_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    }"
+    # Écrire en JSON valide (une ligne par dataset pour traitement avec jq)
+    local dataset_info="{\"id\":\"$dataset_id\",\"satellite\":\"$satellite\",\"instrument\":\"$instrument\",\"sector\":\"$zone\",\"product\":\"$product\",\"resolution\":\"$resolution\",\"discovery_method\":\"satellite-discovery\",\"discovered_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
     
     echo "$dataset_info" >> "$DATASETS_FILE"
     ((TOTAL_DISCOVERIES++))
@@ -136,27 +128,72 @@ scan_product_resolutions() {
         return 0
     fi
     
-    # Récupérer les résolutions disponibles avec protection contre grep qui ne trouve rien
+    # Stratégie différente selon le type de zone
+    if [[ "$zone" == "FD" ]]; then
+        # Full Disk : chercher des sous-dossiers numériques (bandes spectrales)
+        local bands=$(echo "$content" | grep -o 'href="[0-9]\+/"' | sed 's/href="//;s/\/"$//' | sort -n)
+        
+        if [[ -n "$bands" ]]; then
+            # Prendre la première bande pour découvrir les résolutions
+            local first_band=$(echo "$bands" | head -1)
+            local band_url="${product_url}${first_band}/"
+            local band_content=$(curl -k -L -s --max-time 5 "$band_url" 2>/dev/null || echo "")
+            
+            # Extraire les résolutions des noms de fichiers
+            local resolutions_text=$(echo "$band_content" | grep -o '[0-9]\+x[0-9]\+\.jpg' 2>/dev/null || echo "")
+            
+            if [[ -n "$resolutions_text" ]]; then
+                local resolutions=($(echo "$resolutions_text" | sed 's/\.jpg$//' | sort -u))
+                for resolution in "${resolutions[@]}"; do
+                    add_dataset "$satellite" "$instrument" "$zone" "$product" "$resolution"
+                done
+                log "SUCCESS" "✅ Résolutions FD détectées: ${resolutions[*]} pour $satellite/$instrument/$zone/$product"
+                return 0
+            fi
+        fi
+    fi
+    
+    # Pour SECTOR, MESO, etc. : chercher directement les résolutions dans les fichiers
     local resolutions_text=$(echo "$content" | grep -o '[0-9]\+x[0-9]\+\.jpg' 2>/dev/null || echo "")
     local resolutions=()
     
     if [[ -n "$resolutions_text" ]]; then
-        # Convertir en array en supprimant .jpg et triant
         resolutions=($(echo "$resolutions_text" | sed 's/\.jpg$//' | sort -u))
-    fi
-    
-    if [[ ${#resolutions[@]} -gt 0 ]]; then
         for resolution in "${resolutions[@]}"; do
             add_dataset "$satellite" "$instrument" "$zone" "$product" "$resolution"
         done
+        log "SUCCESS" "✅ Résolutions directes détectées: ${resolutions[*]} pour $satellite/$instrument/$zone/$product"
+        return 0
+    fi
+    
+    # Résolutions prédéfinies pour certains types de secteurs
+    local default_resolution=""
+    case "$zone" in
+        "SECTOR")
+            case "$product" in
+                "GEOCOLOR"|"geocolor") default_resolution="10848x10848" ;;
+                "cam"|"can"|"car") default_resolution="2500x1500" ;;
+                *) default_resolution="1808x1808" ;;
+            esac
+            ;;
+        "MESO")
+            default_resolution="1000x1000"
+            ;;
+        "CONUS")
+            default_resolution="5424x5424"
+            ;;
+    esac
+    
+    if [[ -n "$default_resolution" ]]; then
+        add_dataset "$satellite" "$instrument" "$zone" "$product" "$default_resolution"
+        log "INFO" "📐 Résolution par défaut: $default_resolution pour $satellite/$instrument/$zone/$product"
     else
         # Vérifier s'il y a au moins des fichiers dans le répertoire
         local has_files=$(echo "$content" | grep -c 'href="[^"]*\.[^"]*"' 2>/dev/null || echo "0")
         if [[ "$has_files" -gt 0 ]]; then
-            # Il y a des fichiers mais pas de résolutions standards, utiliser "unknown"
             add_dataset "$satellite" "$instrument" "$zone" "$product" "unknown"
+            log "WARNING" "⚠️  Résolution inconnue pour $satellite/$instrument/$zone/$product"
         else
-            # Répertoire vide, on ignore
             log "WARNING" "⚠️  Produit vide: $satellite/$instrument/$zone/$product"
         fi
     fi
@@ -234,12 +271,9 @@ integrate_datasets() {
     fi
     
     # Créer un fichier temporaire pour les datasets découverts
-    local temp_file=$(mktemp)
-    
-    # Convertir le fichier de datasets en format approprié
-    jq -s '
+    local temp_discovered=$(mktemp)
+    cat "$DATASETS_FILE" | jq -s '
         map(
-            select(.id and .satellite and .instrument and .sector and .product and .resolution) |
             {
                 key: .id,
                 value: {
@@ -252,33 +286,50 @@ integrate_datasets() {
                     status: "available",
                     description: (.satellite + " " + .instrument + " " + .sector + " " + .product + " " + .resolution),
                     source: (.discovery_method // "satellite-discovery"),
-                    discovered_date: (.discovered_at // now | strftime("%Y-%m-%dT%H:%M:%S%z"))
+                    discovered_date: (.discovered_at // (now | strftime("%Y-%m-%dT%H:%M:%S%z")))
                 }
             }
         ) |
         from_entries
-    ' "$DATASETS_FILE" > "$temp_file" 2>/dev/null || {
-        log "ERROR" "Erreur lors de la conversion des datasets"
-        rm -f "$temp_file"
+    ' > "$temp_discovered" 2>/dev/null || {
+        log "ERROR" "Erreur lors de la conversion des datasets avec jq"
+        rm -f "$temp_discovered"
         return 1
     }
     
-    local discovered_datasets=$(cat "$temp_file")
-    rm -f "$temp_file"
+    # Construire le fichier final avec traitement par fichiers temporaires
+    local temp_final=$(mktemp)
+    local temp_enabled=$(mktemp)
+    local temp_disabled=$(mktemp)
     
-    # Construire le fichier final
+    # Écrire les sections dans des fichiers temporaires
+    echo "$enabled_datasets" > "$temp_enabled"
+    echo "$disabled_datasets" > "$temp_disabled"
+    
+    # Construire le fichier final avec jq en lecture de fichiers
     jq -n \
-        --argjson enabled "$enabled_datasets" \
-        --argjson disabled "$disabled_datasets" \
-        --argjson discovered "$discovered_datasets" \
+        --slurpfile enabled "$temp_enabled" \
+        --slurpfile disabled "$temp_disabled" \
+        --slurpfile discovered "$temp_discovered" \
         '{
-            enabled_datasets: $enabled,
-            disabled_datasets: $disabled,
-            discovered_datasets: $discovered
-        }' > "$DATASETS_STATUS_FILE" || {
+            enabled_datasets: $enabled[0],
+            disabled_datasets: $disabled[0],
+            discovered_datasets: $discovered[0]
+        }' > "$temp_final" 2>/dev/null || {
         log "ERROR" "Erreur lors de la création du fichier final"
+        rm -f "$temp_final" "$temp_enabled" "$temp_disabled" "$temp_discovered"
         return 1
     }
+    
+    # Copier le résultat final
+    mv "$temp_final" "$DATASETS_STATUS_FILE" || {
+        log "ERROR" "Erreur lors de la copie du fichier final"
+        rm -f "$temp_final" "$temp_enabled" "$temp_disabled" "$temp_discovered"
+        return 1
+    }
+    
+    # Nettoyer les fichiers temporaires
+    rm -f "$temp_enabled" "$temp_disabled" "$temp_discovered"
     
     # Statistiques d'intégration
     local enabled_count=$(jq '.enabled_datasets | length' "$DATASETS_STATUS_FILE")

@@ -1,34 +1,70 @@
-#!/bin/bash
+#!/# Génération de timestamps pour les derniers jours
+generate_time_range() {
+    local days=${1:-2}
+    
+    local timestamps=()
+    local current=$(date -u -d "$days days ago" '+%s')
+    local end=$(date -u '+%s')
+    
+    # Timestamps toutes les 15 minutes pour MTG (haute fréquence)
+    while [[ $current -le $end ]]; do
+        local timestamp=$(date -u -d "@$current" '+%Y-%m-%dT%H:%M:%SZ')
+        timestamps+=("$timestamp")
+        current=$((current + 900))  # +15 minutes (900 secondes)
+    done
+    
+    # Afficher les timestamps pour capture
+    printf '%s\n' "${timestamps[@]}"
+}UMETSAT MTG FCI - Téléchargement datasets focus (Geocolor + VIS 0.6)
+# Basé sur# Génération de timestamps pour les derniers jours
+generate_time_range() {
+    log "INFO" "📅 Génération plage temporelle (2 jours récents)..."
+    
+    TIMESTAMPS=()
+    local current=$(date -u -d '2 days ago' '+%s')
+    local end=$(date -u '+%s')
+    
+    # Timestamps toutes les 15 minutes pour MTG (haute fréquence)
+    while [[ $current -le $end ]]; do
+        local timestamp=$(date -u -d "@$current" '+%Y-%m-%dT%H:%M:%SZ')
+        TIMESTAMPS+=("$timestamp")
+        current=$((current + 900)) # +15 minutes
+    done
+    
+    log "INFO" "📊 ${#TIMESTAMPS[@]} timestamps générés (intervalle 15min)"
+}
 
-# 🛰️ EUMETSAT MTG FCI - Téléchargement datasets focus (Geocolor + VIS 0.6)
-# Script optimisé pour les 2 datasets MTG prioritaires
-
-set -uo pipefail
+set -uo pipefail  # Suppression de -e pour continuer en cas d'erreur
 
 # Configuration
 BASE_DIR="$(dirname "$(readlink -f "$0")")/.."
 DATA_DIR="$BASE_DIR/public/data/EUMETSAT"
 LOG_DIR="$DATA_DIR/logs"
 WMS_URL="https://view.eumetsat.int/geoserver/wms"
+WCS_URL="https://view.eumetsat.int/geoserver/ows"
+WFS_URL="https://view.eumetsat.int/geoserver/ows"
 API_URL="https://api.eumetsat.int"
 
-# Authentification EUMETSAT
+# Identifiants API
 CONSUMER_KEY="1hK2fINugbeWv6T7UA9Uqk4PAoEa"
 CONSUMER_SECRET="0_i8fkJR8knY6xDNh9IqWIavy30a"
-
-# Variables globales
-SUCCESS_COUNT=0
-TOTAL_ATTEMPTS=0
-TOKEN=""
 
 # Couleurs pour les logs
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+PURPLE='\033[0;35m'
 NC='\033[0m'
 
-# Fonction de logging
+# Variables globales
+TOKEN=""
+TIMESTAMPS=()
+SUCCESS_COUNT=0
+TOTAL_ATTEMPTS=0
+
+# Fonction de log avec couleurs
 log() {
     local level=$1
     shift
@@ -39,18 +75,22 @@ log() {
         "INFO")  echo -e "${GREEN}[INFO]${NC}  $timestamp - $message" ;;
         "WARN")  echo -e "${YELLOW}[WARN]${NC}  $timestamp - $message" ;;
         "ERROR") echo -e "${RED}[ERROR]${NC} $timestamp - $message" ;;
-        "SUCCESS") echo -e "${BLUE}[SUCCESS]${NC} $timestamp - $message" ;;
+        "DEBUG") echo -e "${CYAN}[DEBUG]${NC} $timestamp - $message" ;;
+        "SUCCESS") echo -e "${PURPLE}[SUCCESS]${NC} $timestamp - $message" ;;
+        *)       echo "$timestamp - $message" ;;
     esac
 }
 
-# Initialisation environnement
+# Initialisation de l'environnement
 init_environment() {
     log "INFO" "🛰️ MTG FCI - Datasets Focus (Geocolor + VIS0.6) - $(date)"
     log "INFO" "============================================================"
     
-    # Création structure MTG uniquement
+    # Structure pour MTG FCI seulement
     mkdir -p "$DATA_DIR/MTG/FullDisc/Geocolor"
     mkdir -p "$DATA_DIR/MTG/FullDisc/VIS06"
+    
+    # Logs
     mkdir -p "$LOG_DIR"
     
     log "INFO" "📁 Structure créée: $DATA_DIR"
@@ -60,35 +100,40 @@ init_environment() {
 generate_token() {
     log "INFO" "🔑 Génération token API..."
     
-    local response=$(curl -s -X POST \
-        -H "Content-Type: application/x-www-form-urlencoded" \
+    local auth_string=$(echo -n "$CONSUMER_KEY:$CONSUMER_SECRET" | base64 -w 0)
+    
+    local response=$(curl -s -k \
         -d "grant_type=client_credentials" \
-        -u "$CONSUMER_KEY:$CONSUMER_SECRET" \
+        -H "Authorization: Basic $auth_string" \
         "$API_URL/token")
     
-    if [[ -n "$response" ]] && echo "$response" | grep -q "access_token"; then
-        TOKEN=$(echo "$response" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
-        local short_token="${TOKEN:0:8}..."
-        log "SUCCESS" "✅ Token généré: $short_token"
+    if echo "$response" | jq -e '.access_token' > /dev/null 2>&1; then
+        TOKEN=$(echo "$response" | jq -r '.access_token')
+        log "SUCCESS" "✅ Token généré: ${TOKEN:0:8}..."
         return 0
     else
-        log "WARN" "⚠️ Token non généré, utilisation mode public"
+        log "WARN" "⚠️ Échec génération token, mode public seulement"
+        TOKEN=""
         return 1
     fi
 }
 
-# Génération timestamps récents
+# Génération de timestamps pour les derniers jours
 generate_time_range() {
-    local days=${1:-2}
-    local current=$(date -u -d "$days days ago" '+%s')
+    log "INFO" "📅 Génération plage temporelle (2 jours récents)..."
+    
+    TIMESTAMPS=()
+    local current=$(date -u -d '2 days ago' '+%s')
     local end=$(date -u '+%s')
     
-    # Timestamps toutes les 15 minutes pour MTG
+    # Timestamps toutes les 15 minutes pour couvrir tous les datasets
     while [[ $current -le $end ]]; do
         local timestamp=$(date -u -d "@$current" '+%Y-%m-%dT%H:%M:%SZ')
-        echo "$timestamp"
-        current=$((current + 900))  # +15 minutes
+        TIMESTAMPS+=("$timestamp")
+        current=$((current + 900)) # +15 minutes
     done
+    
+    log "INFO" "📊 ${#TIMESTAMPS[@]} timestamps générés (intervalle 15min)"
 }
 
 # Téléchargement image WMS
@@ -98,21 +143,14 @@ download_wms_image() {
     local output_dir=$3
     local filename_prefix=$4
     local timestamp=$5
-    local width=${6:-2000}
-    local height=${7:-2000}
-    
-    # Extraire la date du timestamp pour organiser par date
-    local date_part=$(echo "$timestamp" | cut -d'T' -f1)
-    local dated_output_dir="$output_dir/$date_part"
-    
-    # Créer le répertoire de date
-    mkdir -p "$dated_output_dir"
+    local width=${6:-1000}
+    local height=${7:-1000}
     
     local formatted_time=$(echo "$timestamp" | sed 's/:/%3A/g')
     local filename="${filename_prefix}_$(echo "$timestamp" | sed 's/[:-]//g' | cut -c1-15).png"
-    local output_path="$dated_output_dir/$filename"
+    local output_path="$output_dir/$filename"
     
-    # Construction URL WMS
+    # URL WMS
     local url="${WMS_URL}?service=WMS&version=1.3.0&request=GetMap"
     url+="&layers=$layer"
     url+="&styles="
@@ -123,11 +161,6 @@ download_wms_image() {
     url+="&crs=EPSG:4326"
     url+="&bbox=$bbox"
     url+="&time=$formatted_time"
-    
-    # Ajout token si disponible
-    if [[ -n "$TOKEN" ]]; then
-        url+="&access_token=$TOKEN"
-    fi
     
     if curl -s -f "$url" -o "$output_path"; then
         local size=$(stat -c%s "$output_path" 2>/dev/null || echo "0")
@@ -148,9 +181,48 @@ download_wms_image() {
     fi
 }
 
-# Téléchargement MTG Geocolor
+# Téléchargement données vectorielles WFS
+download_wfs_data() {
+    local layer=$1
+    local output_dir=$2
+    local filename=$3
+    local bbox=${4:-"-180,-90,180,90"}
+    
+    # URL WFS
+    local url="${WFS_URL}?service=WFS&version=2.0.0&request=GetFeature"
+    url+="&typeName=$layer"
+    url+="&outputFormat=application/json"
+    url+="&bbox=$bbox"
+    url+="&maxFeatures=1000"
+    
+    local output_path="$output_dir/${filename}.geojson"
+    
+    if curl -s -f "$url" -o "$output_path"; then
+        local size=$(stat -c%s "$output_path" 2>/dev/null || echo "0")
+        
+        if [[ $size -gt 100 ]]; then
+            # Vérification que c'est du JSON valide
+            if jq -e . "$output_path" > /dev/null 2>&1; then
+                local size_human=$(numfmt --to=iec --suffix=B $size)
+                log "SUCCESS" "✅ $filename.geojson ($size_human)"
+                ((SUCCESS_COUNT++))
+                return 0
+            fi
+        fi
+        
+        log "WARN" "❌ Données vectorielles invalides: $filename"
+        rm -f "$output_path"
+        return 1
+    else
+        log "WARN" "❌ Échec WFS: $filename"
+        return 1
+    fi
+}
+
+# Dataset 1: MTG FCI Geocolor (RGB True Colour)
 download_mtg_geocolor() {
     local timestamp="$1"
+    log "INFO" "🛰️ MTG FCI - Geocolor ($timestamp)..."
     
     local layer="mtg_fd:rgb_truecolour"
     local bbox="-70,-70,70,70"
@@ -158,12 +230,19 @@ download_mtg_geocolor() {
     local prefix="mtg_geocolor"
     
     ((TOTAL_ATTEMPTS++))
-    download_wms_image "$layer" "$bbox" "$output_dir" "$prefix" "$timestamp" "2000" "2000"
+    if download_wms_image "$layer" "$bbox" "$output_dir" "$prefix" "$timestamp" "2000" "2000"; then
+        log "SUCCESS" "✅ MTG Geocolor: $timestamp téléchargé"
+        return 0
+    else
+        log "WARN" "❌ MTG Geocolor: échec pour $timestamp"
+        return 1
+    fi
 }
 
-# Téléchargement MTG VIS 0.6
+# Dataset 2: MTG FCI VIS 0.6 µm
 download_mtg_vis06() {
     local timestamp="$1"
+    log "INFO" "🛰️ MTG FCI - VIS 0.6 µm ($timestamp)..."
     
     local layer="mtg_fd:vis06_hrfi"
     local bbox="-70,-70,70,70"
@@ -171,33 +250,45 @@ download_mtg_vis06() {
     local prefix="mtg_vis06"
     
     ((TOTAL_ATTEMPTS++))
-    download_wms_image "$layer" "$bbox" "$output_dir" "$prefix" "$timestamp" "2000" "2000"
+    if download_wms_image "$layer" "$bbox" "$output_dir" "$prefix" "$timestamp" "2000" "2000"; then
+        log "SUCCESS" "✅ MTG VIS 0.6: $timestamp téléchargé"
+        return 0
+    else
+        log "WARN" "❌ MTG VIS 0.6: échec pour $timestamp"
+        return 1
+    fi
 }
 
-# Validation
+# Validation globale
 validate_downloads() {
     log "INFO" "🔍 Validation des téléchargements..."
     
-    local valid_count=0
+    local total_images=0
+    local valid_images=0
     local total_size=0
     
-    for dir in "$DATA_DIR/MTG/FullDisc"/*; do
-        if [[ -d "$dir" ]]; then
-            local count=$(find "$dir" -name "*.png" 2>/dev/null | wc -l)
-            valid_count=$((valid_count + count))
-            
-            local size=$(find "$dir" -name "*.png" -exec stat -c%s {} + 2>/dev/null | awk '{sum+=$1} END {print sum}' || echo "0")
-            total_size=$((total_size + size))
+    # Images MTG seulement
+    while IFS= read -r -d '' file; do
+        ((total_images++))
+        local size=$(stat -c%s "$file")
+        
+        if [[ $size -gt 1000 ]]; then
+            ((valid_images++))
+            ((total_size+=size))
+        else
+            log "WARN" "Image corrompue: $(basename "$file")"
+            rm -f "$file"
         fi
-    done
+    done < <(find "$DATA_DIR/MTG" -name "*.png" -print0 2>/dev/null)
     
-    local size_human=$(numfmt --to=iec --suffix=B $total_size)
-    log "SUCCESS" "✅ Images: $valid_count/$valid_count valides"
-    log "SUCCESS" "💾 Taille totale: $size_human"
+    local total_size_human=$(numfmt --to=iec --suffix=B $total_size)
+    
+    log "SUCCESS" "✅ Images: $valid_images/$total_images valides"
+    log "SUCCESS" "💾 Taille totale: $total_size_human"
 }
 
-# Rapport final
-generate_report() {
+# Génération rapport détaillé
+generate_priority_report() {
     local log_file="$LOG_DIR/mtg-focus-$(date '+%Y%m%d_%H%M').log"
     
     log "INFO" "📋 Génération rapport: $log_file"
@@ -213,8 +304,11 @@ generate_report() {
         if [[ $TOTAL_ATTEMPTS -gt 0 ]]; then
             echo "   📈 Taux de réussite: $(( SUCCESS_COUNT * 100 / TOTAL_ATTEMPTS ))%"
         else
-            echo "   📈 Taux de réussite: N/A"
+            echo "   📈 Taux de réussite: N/A (aucune tentative)"
         fi
+        echo
+        
+        echo "📂 Structure des données MTG FCI:"
         echo
         
         # MTG Geocolor
@@ -261,7 +355,11 @@ main() {
     # Token API (optionnel)
     generate_token || true
     
-    # Génération timestamps
+    # Variables de tracking
+    SUCCESS_COUNT=0
+    TOTAL_ATTEMPTS=0
+    
+    # Génération timestamps (15min intervals pour MTG FCI)
     log "INFO" "📅 Génération plage temporelle (2 jours récents)..."
     local timestamps
     mapfile -t timestamps < <(generate_time_range)
@@ -281,9 +379,11 @@ main() {
         download_mtg_vis06 "$timestamp"
     done
     
-    # Validation et rapport
+    # Validation
     validate_downloads
-    generate_report
+    
+    # Rapport
+    generate_priority_report
     
     # Statistiques finales
     local end_time=$(date +%s)

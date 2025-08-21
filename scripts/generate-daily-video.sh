@@ -45,10 +45,14 @@ if ! command -v ffmpeg &> /dev/null; then
     exit 1
 fi
 
-# Fonction pour trouver le dossier d'images selon le dataset
+# Fonction pour trouver le dossier d'images selon le dataset avec support NOAA/EUMETSAT
 find_images_directory() {
     local dataset_key="$1"
     local date="$2"
+    
+    # Récupérer la source du dataset depuis la configuration
+    local config_file="$(dirname "$SCRIPT_DIR")/config/datasets-status.json"
+    local source=$(jq -r ".enabled_datasets[\"$dataset_key\"].source // \"UNKNOWN\"" "$config_file" 2>/dev/null)
     
     # Conversion du dataset key en chemin: GOES18.hi.GEOCOLOR.600x600 -> NOAA/GOES18/hi/GEOCOLOR/600x600
     IFS='.' read -ra PARTS <<< "$dataset_key"
@@ -58,13 +62,25 @@ find_images_directory() {
         local product="${PARTS[2]}"
         local resolution="${PARTS[3]}"
         
-        # Satellites NOAA (GOES) vont dans NOAA/satellite/...
-        if [[ "$satellite" =~ ^GOES[0-9]+$ ]]; then
-            echo "$DATA_ROOT_PATH/NOAA/$satellite/$sector/$product/$resolution/$date"
-        else
-            # Autres satellites gardent la structure actuelle
-            echo "$DATA_ROOT_PATH/$satellite/$sector/$product/$resolution/$date"
-        fi
+        case "$source" in
+            "NOAA")
+                # Structure NOAA: NOAA/satellite/sector/product/resolution/date
+                echo "$DATA_ROOT_PATH/NOAA/$satellite/$sector/$product/$resolution/$date"
+                ;;
+            "EUMETSAT")
+                # Structure EUMETSAT: EUMETSAT/satellite/sector/product/date
+                echo "$DATA_ROOT_PATH/EUMETSAT/$satellite/$sector/$product/$date"
+                ;;
+            *)
+                # Fallback vers structure NOAA pour satellites GOES (rétrocompatibilité)
+                if [[ "$satellite" =~ ^GOES[0-9]+$ ]]; then
+                    echo "$DATA_ROOT_PATH/NOAA/$satellite/$sector/$product/$resolution/$date"
+                else
+                    # Autres satellites gardent la structure actuelle
+                    echo "$DATA_ROOT_PATH/$satellite/$sector/$product/$resolution/$date"
+                fi
+                ;;
+        esac
     else
         echo ""
     fi
@@ -113,22 +129,102 @@ generate_video_for_dataset() {
     log "🎞️ Première image: $(basename "$first_image")"
     log "🎞️ Dernière image: $(basename "$last_image")"
 
+    # Détection automatique de la résolution pour adapter les paramètres FFmpeg
+    local image_resolution="standard"
+    local ffmpeg_threads=2
+    local video_preset="medium"
+    
+    if [[ "$dataset_key" == *"4000x4000"* ]]; then
+        image_resolution="ultra_high"
+        ffmpeg_threads=1  # Limiter les threads pour économiser la mémoire
+        video_preset="ultrafast"  # Preset plus rapide pour éviter les timeouts
+        log "📊 Détection ultra-haute résolution (4000x4000): optimisation mémoire activée"
+    elif [[ "$dataset_key" == *"2000x2000"* ]]; then
+        image_resolution="high"
+        ffmpeg_threads=2
+        video_preset="fast"
+        log "📊 Détection haute résolution (2000x2000): optimisation modérée"
+    fi
+
     # Génération vidéo MP4 temporaire
     log "🔄 Génération MP4 temporaire..."
     local temp_video="/tmp/temp-$dataset_key-$target_date.mp4"
-    if ffmpeg -hide_banner -y \
-        -f concat \
-        -safe 0 \
-        -threads 2 \
-        -i <(sed 's/^/file /' "$images_list") \
-        -r "$VIDEO_FPS" \
-        -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2,format=yuv420p" \
-        -c:v libx264 \
-        -crf "$VIDEO_CRF" \
-        -preset "$VIDEO_PRESET" \
-        -pix_fmt yuv420p \
-        -movflags +faststart \
-        "$temp_video" &>> "$LOG_FILE"; then
+    local success=false
+    
+    # Détection du source pour adapter la méthode FFmpeg
+    local use_pattern_input=false
+    if [[ "$dataset_key" == MTG.* ]]; then
+        # Pour EUMETSAT, utiliser le pattern d'entrée pour forcer la framerate
+        use_pattern_input=true
+        log "📊 Détection EUMETSAT: utilisation du pattern d'entrée pour corriger les timestamps"
+    fi
+    
+    if [ "$use_pattern_input" = true ]; then
+        # Méthode pattern pour EUMETSAT avec format pixel correct
+        if ffmpeg -hide_banner -y \
+            -framerate "$VIDEO_FPS" \
+            -pattern_type glob \
+            -i "$(dirname "$first_image")/*.png" \
+            -r "$VIDEO_FPS" \
+            -threads "$ffmpeg_threads" \
+            -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2" \
+            -c:v libx264 \
+            -crf "$VIDEO_CRF" \
+            -preset "$video_preset" \
+            -pix_fmt yuv420p \
+            -color_range tv \
+            -colorspace bt709 \
+            -movflags +faststart \
+            "$temp_video" &>> "$LOG_FILE"; then
+            success=true
+        fi
+    else
+        # Méthode concat pour NOAA avec optimisations selon la résolution
+        local concat_cmd=""
+        if [ "$image_resolution" = "ultra_high" ]; then
+            # Pour les images 4000x4000 : paramètres optimisés sans downscale
+            concat_cmd="ffmpeg -hide_banner -y \
+                -f concat \
+                -safe 0 \
+                -threads $ffmpeg_threads \
+                -i <(sed \"s/^/file '/\" \"$images_list\" | sed \"s/\$/'/\" ) \
+                -r $VIDEO_FPS \
+                -vf \"pad=ceil(iw/2)*2:ceil(ih/2)*2\" \
+                -c:v libx264 \
+                -crf $((VIDEO_CRF + 2)) \
+                -preset $video_preset \
+                -pix_fmt yuv420p \
+                -color_range tv \
+                -colorspace bt709 \
+                -movflags +faststart \
+                -max_muxing_queue_size 1024 \
+                \"$temp_video\""
+            log "🔧 Optimisation ultra-haute résolution: format pixel correct, CRF+2, muxing_queue étendu"
+        else
+            # Méthode standard pour les autres résolutions
+            concat_cmd="ffmpeg -hide_banner -y \
+                -f concat \
+                -safe 0 \
+                -threads $ffmpeg_threads \
+                -i <(sed \"s/^/file '/\" \"$images_list\" | sed \"s/\$/'/\" ) \
+                -r $VIDEO_FPS \
+                -vf \"pad=ceil(iw/2)*2:ceil(ih/2)*2\" \
+                -c:v libx264 \
+                -crf $VIDEO_CRF \
+                -preset $video_preset \
+                -pix_fmt yuv420p \
+                -color_range tv \
+                -colorspace bt709 \
+                -movflags +faststart \
+                \"$temp_video\""
+        fi
+        
+        if eval "$concat_cmd" &>> "$LOG_FILE"; then
+            success=true
+        fi
+    fi
+    
+    if [ "$success" = true ]; then
         # Générer un unique segment TS
         if ffmpeg -y -i "$temp_video" -c copy -f mpegts "$segment_file" &>> "$LOG_FILE"; then
             log "✅ Segment unique créé: $(basename "$segment_file")"

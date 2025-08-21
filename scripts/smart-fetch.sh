@@ -25,7 +25,7 @@ log() {
     echo "$message" | tee -a "$LOG_FILE"
 }
 
-# Fonction pour construire le chemin de données satellite avec structure NOAA
+# Fonction pour construire le chemin de données satellite avec structure NOAA/EUMETSAT
 build_satellite_data_path() {
     local satellite="$1"
     local sector="$2"
@@ -33,13 +33,29 @@ build_satellite_data_path() {
     local resolution="$4"
     local date="$5"
     
-    # Satellites NOAA (GOES) vont dans NOAA/satellite/...
-    if [[ "$satellite" =~ ^GOES[0-9]+$ ]]; then
-        echo "$DATA_ROOT_PATH/NOAA/$satellite/$sector/$product/$resolution/$date"
-    else
-        # Autres satellites gardent la structure actuelle
-        echo "$DATA_ROOT_PATH/$satellite/$sector/$product/$resolution/$date"
-    fi
+    # Récupérer la source du dataset depuis la configuration
+    local dataset_key="$satellite.$sector.$product.$resolution"
+    local source=$(jq -r ".enabled_datasets[\"$dataset_key\"].source // \"UNKNOWN\"" "$DATASETS_STATUS_FILE" 2>/dev/null)
+    
+    case "$source" in
+        "NOAA")
+            # Structure NOAA: NOAA/satellite/sector/product/resolution/date
+            echo "$DATA_ROOT_PATH/NOAA/$satellite/$sector/$product/$resolution/$date"
+            ;;
+        "EUMETSAT")
+            # Structure EUMETSAT: EUMETSAT/satellite/sector/product/date
+            echo "$DATA_ROOT_PATH/EUMETSAT/$satellite/$sector/$product/$date"
+            ;;
+        *)
+            # Fallback vers structure NOAA pour satellites GOES (rétrocompatibilité)
+            if [[ "$satellite" =~ ^GOES[0-9]+$ ]]; then
+                echo "$DATA_ROOT_PATH/NOAA/$satellite/$sector/$product/$resolution/$date"
+            else
+                # Autres satellites gardent la structure actuelle
+                echo "$DATA_ROOT_PATH/$satellite/$sector/$product/$resolution/$date"
+            fi
+            ;;
+    esac
 }
 
 # Fonction de mise à jour du tracking
@@ -278,6 +294,186 @@ download_dataset_images() {
         fi
     fi
 }
+
+# Fonction pour télécharger les images EUMETSAT pour une date
+download_eumetsat_images() {
+    local dataset_key="$1"
+    local satellite="$2"
+    local sector="$3"
+    local product="$4"
+    local resolution="$5"
+    local target_date="$6"
+    
+    log "📥 Téléchargement EUMETSAT: $dataset_key pour $target_date"
+    
+    # Générer le token EUMETSAT
+    local token=""
+    if [[ -n "$EUMETSAT_CONSUMER_KEY" && -n "$EUMETSAT_CONSUMER_SECRET" ]]; then
+        log "🔑 Génération token EUMETSAT..."
+        local token_response=$(curl -s -X POST \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=client_credentials" \
+            -u "$EUMETSAT_CONSUMER_KEY:$EUMETSAT_CONSUMER_SECRET" \
+            "$EUMETSAT_API_URL/token")
+        
+        if [[ -n "$token_response" ]] && echo "$token_response" | grep -q "access_token"; then
+            token=$(echo "$token_response" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+            log "✅ Token EUMETSAT généré"
+        else
+            log "⚠️ Échec génération token, tentative en mode public"
+        fi
+    fi
+    
+    # Vérifier les variables de base
+    if [ -z "$EUMETSAT_BASE_URL" ]; then
+        log "❌ Variable EUMETSAT_BASE_URL manquante"
+        update_tracking "$dataset_key" "$target_date" "download" "failed" "Configuration incomplète"
+        return 1
+    fi
+    
+    # Configuration spécifique selon le produit
+    local layer=""
+    local bbox=""
+    local width=2000
+    local height=2000
+    
+    case "$product" in
+        "Geocolor")
+            layer="mtg_fd:rgb_geocolour"
+            bbox="-80,-60,80,80"  # Europe/Afrique
+            ;;
+        "VIS06")
+            layer="mtg_fd:vis06_hrfi"
+            bbox="-80,-60,80,80"
+            ;;
+        *)
+            log "❌ Produit EUMETSAT non supporté: $product"
+            update_tracking "$dataset_key" "$target_date" "download" "failed" "Produit non supporté"
+            return 1
+            ;;
+    esac
+    
+    # Créer le dossier de destination
+    local output_dir=$(build_satellite_data_path "$satellite" "$sector" "$product" "$resolution" "$target_date")
+    mkdir -p "$output_dir"
+    
+    # Générer les timestamps pour la journée (toutes les 15 minutes)
+    local downloaded_count=0
+    local temp_file=$(mktemp)
+    echo "0" > "$temp_file"
+    
+    # Calculer l'heure limite : 1h avant l'heure actuelle UTC (équivaut à 3h en heure locale UTC+2)
+    local current_utc_time=$(date -u +%s)
+    local cutoff_time=$((current_utc_time - 1 * 3600))  # 1 heure = 1 * 3600 secondes
+    local cutoff_timestamp=$(date -u -d "@$cutoff_time" +%Y-%m-%dT%H:%M:%SZ)
+    
+    # Commencer à minuit de la date cible
+    local start_timestamp="${target_date}T00:00:00Z"
+    local start_time=$(date -d "$start_timestamp" +%s)
+    
+    # Déterminer l'heure de fin : soit 23:45 de la date cible, soit l'heure limite (le plus petit)
+    local end_of_day_timestamp="${target_date}T23:45:00Z"
+    local end_of_day_time=$(date -d "$end_of_day_timestamp" +%s)
+    local effective_end_time=$((end_of_day_time < cutoff_time ? end_of_day_time : cutoff_time))
+    
+    log "📋 Images EUMETSAT de $start_timestamp jusqu'à $(date -u -d "@$effective_end_time" +%Y-%m-%dT%H:%M:%SZ) (limite -1h UTC)"
+    
+    # Si l'heure de fin effective est avant le début de la journée, pas d'images à télécharger
+    if [ $effective_end_time -lt $start_time ]; then
+        log "⏰ Aucune image à télécharger - toutes les heures sont dans la 1h future"
+        update_tracking "$dataset_key" "$target_date" "download" "success" "0"
+        return 0
+    fi
+    
+    # Générer toutes les 15 minutes jusqu'à l'heure limite
+    local current_time=$start_time
+    local interval_seconds=$((15 * 60))  # 15 minutes
+    
+    while [ $current_time -le $effective_end_time ]; do
+        
+        local timestamp=$(date -d "@$current_time" -u +%Y-%m-%dT%H:%M:%SZ)
+        local filename_prefix="mtg_$(echo "$product" | tr '[:upper:]' '[:lower:]')"
+        local filename="${filename_prefix}_$(echo "$timestamp" | sed 's/[:-]//g' | cut -c1-15).png"
+        local output_path="$output_dir/$filename"
+        
+        # Vérifier si déjà téléchargé
+        if [ -f "$output_path" ]; then
+            current_time=$((current_time + interval_seconds))
+            continue
+        fi
+        
+        # Construction URL WMS EUMETSAT
+        local formatted_time=$(echo "$timestamp" | sed 's/:/%3A/g')
+        local wms_url="${EUMETSAT_BASE_URL}?service=WMS&version=1.3.0&request=GetMap"
+        wms_url+="&layers=$layer"
+        wms_url+="&styles="
+        wms_url+="&format=image/png"
+        wms_url+="&transparent=true"
+        wms_url+="&width=$width"
+        wms_url+="&height=$height"
+        wms_url+="&crs=EPSG:4326"
+        wms_url+="&bbox=$bbox"
+        wms_url+="&time=$formatted_time"
+        if [[ -n "$token" ]]; then
+            wms_url+="&access_token=$token"
+        fi
+        
+        # Télécharger avec retry
+        local max_retries=3
+        local retry_count=0
+        local success=false
+        
+        while [ $retry_count -lt $max_retries ] && [ "$success" = false ]; do
+            if curl -s -f "$wms_url" -o "$output_path" 2>/dev/null; then
+                if [ -s "$output_path" ]; then
+                    log "  ✓ $filename"
+                    echo $(($(cat "$temp_file") + 1)) > "$temp_file"
+                    success=true
+                else
+                    log "  ⚠️ Fichier vide téléchargé: $filename"
+                    rm -f "$output_path"
+                fi
+            else
+                log "  ⚠️ Échec curl EUMETSAT pour: $timestamp"
+            fi
+            
+            if [ "$success" = false ]; then
+                retry_count=$((retry_count + 1))
+                if [ $retry_count -lt $max_retries ]; then
+                    sleep 2
+                fi
+            fi
+        done
+        
+        if [ "$success" = false ]; then
+            log "  ✗ Échec: $filename"
+        fi
+        
+        # Pause pour éviter la surcharge
+        sleep 0.5
+        current_time=$((current_time + interval_seconds))
+    done
+    
+    # Lire le compteur final
+    downloaded_count=$(cat "$temp_file")
+    rm -f "$temp_file"
+    
+    # Mise à jour du tracking
+    if [ $downloaded_count -gt 0 ]; then
+        update_tracking "$dataset_key" "$target_date" "download" "success" "$downloaded_count"
+        log "📊 Téléchargé EUMETSAT: $downloaded_count images pour $dataset_key - $target_date"
+    else
+        # Vérifier si des fichiers existent déjà
+        local existing_files=$(find "$output_dir" -name "*.png" 2>/dev/null | wc -l)
+        if [ $existing_files -gt 0 ]; then
+            update_tracking "$dataset_key" "$target_date" "download" "success" "$existing_files"
+            log "📁 Images EUMETSAT déjà présentes: $existing_files fichiers pour $dataset_key - $target_date"
+        else
+            update_tracking "$dataset_key" "$target_date" "download" "failed" "0"
+            log "❌ Aucune image EUMETSAT téléchargée pour $dataset_key - $target_date"
+        fi
+    fi
+}
 # Fonction pour traiter un dataset sur une plage de dates
 process_dataset_range() {
     local dataset_key="$1"
@@ -289,15 +485,40 @@ process_dataset_range() {
     # Extraire les composants du dataset
     IFS='.' read -r satellite sector product resolution <<< "$dataset_key"
     
+    # Déterminer la source du dataset
+    local source=$(jq -r ".enabled_datasets[\"$dataset_key\"].source // \"UNKNOWN\"" "$DATASETS_STATUS_FILE" 2>/dev/null)
+    
     # Générer les dates à traiter
     local current_date="$start_date"
     while [[ "$current_date" != "$end_date" ]]; do
-        download_dataset_images "$dataset_key" "$satellite" "$sector" "$product" "$resolution" "$current_date"
+        case "$source" in
+            "NOAA")
+                download_dataset_images "$dataset_key" "$satellite" "$sector" "$product" "$resolution" "$current_date"
+                ;;
+            "EUMETSAT")
+                download_eumetsat_images "$dataset_key" "$satellite" "$sector" "$product" "$resolution" "$current_date"
+                ;;
+            *)
+                log "⚠️ Source inconnue '$source' pour $dataset_key, utilisation de NOAA par défaut"
+                download_dataset_images "$dataset_key" "$satellite" "$sector" "$product" "$resolution" "$current_date"
+                ;;
+        esac
         current_date=$(date -d "$current_date + 1 day" +%Y-%m-%d)
     done
     
     # Traiter aussi la date de fin
-    download_dataset_images "$dataset_key" "$satellite" "$sector" "$product" "$resolution" "$end_date"
+    case "$source" in
+        "NOAA")
+            download_dataset_images "$dataset_key" "$satellite" "$sector" "$product" "$resolution" "$end_date"
+            ;;
+        "EUMETSAT")
+            download_eumetsat_images "$dataset_key" "$satellite" "$sector" "$product" "$resolution" "$end_date"
+            ;;
+        *)
+            log "⚠️ Source inconnue '$source' pour $dataset_key, utilisation de NOAA par défaut"
+            download_dataset_images "$dataset_key" "$satellite" "$sector" "$product" "$resolution" "$end_date"
+            ;;
+    esac
 }
 
 # Fonction principale de synchronisation

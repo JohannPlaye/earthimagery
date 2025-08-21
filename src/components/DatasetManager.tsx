@@ -38,12 +38,15 @@ interface Dataset {
   status: 'available' | 'downloaded' | 'processing' | 'error';
   file_size?: number;
   default_display?: boolean;
+  source?: string;
 }
 
 interface DatasetsByCategory {
-  [satellite: string]: {
-    [sector: string]: {
-      [product: string]: Dataset[];
+  [source: string]: {
+    [satellite: string]: {
+      [sector: string]: {
+        [product: string]: Dataset[];
+      };
     };
   };
 }
@@ -54,6 +57,7 @@ export default function DatasetManager({ onToggleTerminal }: DatasetManagerProps
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set(['NOAA', 'EUMETSAT']));
   const [expandedSatellites, setExpandedSatellites] = useState<Set<string>>(new Set(['GOES18']));
 
   // Charger les datasets disponibles
@@ -205,16 +209,20 @@ export default function DatasetManager({ onToggleTerminal }: DatasetManagerProps
     });
     const organized: DatasetsByCategory = {};
     sorted.forEach(dataset => {
-      if (!organized[dataset.satellite]) {
-        organized[dataset.satellite] = {};
+      const source = dataset.source || 'UNKNOWN';
+      if (!organized[source]) {
+        organized[source] = {};
       }
-      if (!organized[dataset.satellite][dataset.sector]) {
-        organized[dataset.satellite][dataset.sector] = {};
+      if (!organized[source][dataset.satellite]) {
+        organized[source][dataset.satellite] = {};
       }
-      if (!organized[dataset.satellite][dataset.sector][dataset.product]) {
-        organized[dataset.satellite][dataset.sector][dataset.product] = [];
+      if (!organized[source][dataset.satellite][dataset.sector]) {
+        organized[source][dataset.satellite][dataset.sector] = {};
       }
-      organized[dataset.satellite][dataset.sector][dataset.product].push(dataset);
+      if (!organized[source][dataset.satellite][dataset.sector][dataset.product]) {
+        organized[source][dataset.satellite][dataset.sector][dataset.product] = [];
+      }
+      organized[source][dataset.satellite][dataset.sector][dataset.product].push(dataset);
     });
     return organized;
   };
@@ -312,73 +320,102 @@ export default function DatasetManager({ onToggleTerminal }: DatasetManagerProps
 
       {/* Liste des datasets organisée */}
       <div className="space-y-2">
-        {Object.entries(organizedDatasets).map(([satellite, sectors]) => (
-          <div key={satellite} className="bg-[#232347] rounded-lg">
+        {Object.entries(organizedDatasets).map(([source, satellites]) => (
+          <div key={source} className="bg-[#1a1a2e] rounded-lg border border-purple-800">
             <button
               className="w-full flex items-center justify-between px-3 py-2 text-left focus:outline-none"
               onClick={() => {
-                const newExpanded = new Set(expandedSatellites);
-                if (!expandedSatellites.has(satellite)) {
-                  newExpanded.add(satellite);
+                const newExpanded = new Set(expandedSources);
+                if (!expandedSources.has(source)) {
+                  newExpanded.add(source);
                 } else {
-                  newExpanded.delete(satellite);
+                  newExpanded.delete(source);
                 }
-                setExpandedSatellites(newExpanded);
+                setExpandedSources(newExpanded);
               }}
             >
-              <span className="font-semibold text-purple-300">{satellite}</span>
-              <span className="bg-purple-900 text-purple-200 rounded-full px-2 py-0.5 text-xs">{Object.values(sectors).flat().flat().length}</span>
+              <span className="font-bold text-purple-200 flex items-center gap-2">
+                {source === 'NOAA' ? '🛰️ NOAA' : source === 'EUMETSAT' ? '🛰️ EUMETSAT' : '🌍 ' + source}
+              </span>
+              <span className="bg-purple-800 text-purple-100 rounded-full px-2 py-0.5 text-xs">
+                {Object.values(satellites).flat().flat().flat().length}
+              </span>
             </button>
-            {expandedSatellites.has(satellite) && (
+            {expandedSources.has(source) && (
               <div className="px-3 pb-2">
-                {Object.entries(sectors).map(([sector, products]) => (
-                  <div key={sector} className="mb-1">
-                    <div className="text-xs text-blue-300 font-medium mb-1">📍 {sector.toUpperCase()}</div>
-                    {Object.entries(products).map(([product, datasetList]) => (
-                      <div key={product} className="bg-[#181825] rounded-md mb-1 p-2">
-                        <div className="text-xs text-purple-200 font-semibold mb-1">{product}</div>
-                        <div className="flex flex-wrap gap-1">
-                          {datasetList.map(dataset => (
-                            <div
-                              key={dataset.key}
-                              className="flex items-center justify-between bg-[#232347] rounded px-2 py-1 min-w-[180px] text-xs"
-                            >
-                              <div className="flex items-center gap-1">
-                                {getStatusIcon(dataset.status)}
-                                <span className="text-gray-200">{dataset.resolution}</span>
-                                {dataset.file_size && (
-                                  <span className="text-gray-400">({formatFileSize(dataset.file_size)})</span>
-                                )}
+                {Object.entries(satellites).map(([satellite, sectors]) => (
+                  <div key={satellite} className="bg-[#232347] rounded-lg mb-2">
+                    <button
+                      className="w-full flex items-center justify-between px-3 py-2 text-left focus:outline-none"
+                      onClick={() => {
+                        const newExpanded = new Set(expandedSatellites);
+                        if (!expandedSatellites.has(satellite)) {
+                          newExpanded.add(satellite);
+                        } else {
+                          newExpanded.delete(satellite);
+                        }
+                        setExpandedSatellites(newExpanded);
+                      }}
+                    >
+                      <span className="font-semibold text-purple-300">{satellite}</span>
+                      <span className="bg-purple-900 text-purple-200 rounded-full px-2 py-0.5 text-xs">
+                        {Object.values(sectors).flat().flat().length}
+                      </span>
+                    </button>
+                    {expandedSatellites.has(satellite) && (
+                      <div className="px-3 pb-2">
+                        {Object.entries(sectors).map(([sector, products]) => (
+                          <div key={sector} className="mb-1">
+                            <div className="text-xs text-blue-300 font-medium mb-1">📍 {sector.toUpperCase()}</div>
+                            {Object.entries(products).map(([product, datasetList]) => (
+                              <div key={product} className="bg-[#181825] rounded-md mb-1 p-2">
+                                <div className="text-xs text-purple-200 font-semibold mb-1">{product}</div>
+                                <div className="flex flex-wrap gap-1">
+                                  {datasetList.map((dataset: Dataset) => (
+                                    <div
+                                      key={dataset.key}
+                                      className="flex items-center justify-between bg-[#232347] rounded px-2 py-1 min-w-[180px] text-xs"
+                                    >
+                                      <div className="flex items-center gap-1">
+                                        {getStatusIcon(dataset.status)}
+                                        <span className="text-gray-200">{dataset.resolution}</span>
+                                        {dataset.file_size && (
+                                          <span className="text-gray-400">({formatFileSize(dataset.file_size)})</span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <Switch
+                                          checked={dataset.enabled}
+                                          onChange={(e) => toggleDataset(dataset.key, e.target.checked, dataset.auto_download)}
+                                          size="small"
+                                          disabled={!!dataset.default_display}
+                                          color="secondary"
+                                        />
+                                        {dataset.enabled && (
+                                          <input
+                                            type="radio"
+                                            name="defaultDisplay"
+                                            checked={!!dataset.default_display}
+                                            onChange={() => setDefaultDataset(dataset.key)}
+                                            className="accent-purple-400"
+                                          />
+                                        )}
+                                        <Switch
+                                          checked={dataset.auto_download}
+                                          onChange={(e) => toggleAutoDownload(dataset.key, e.target.checked)}
+                                          size="small"
+                                          color="secondary"
+                                        />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <Switch
-                                  checked={dataset.enabled}
-                                  onChange={(e) => toggleDataset(dataset.key, e.target.checked, dataset.auto_download)}
-                                  size="small"
-                                  disabled={!!dataset.default_display}
-                                  color="secondary"
-                                />
-                                {dataset.enabled && (
-                                  <input
-                                    type="radio"
-                                    name="defaultDisplay"
-                                    checked={!!dataset.default_display}
-                                    onChange={() => setDefaultDataset(dataset.key)}
-                                    className="accent-purple-400"
-                                  />
-                                )}
-                                <Switch
-                                  checked={dataset.auto_download}
-                                  onChange={(e) => toggleAutoDownload(dataset.key, e.target.checked)}
-                                  size="small"
-                                  color="secondary"
-                                />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
                 ))}
               </div>

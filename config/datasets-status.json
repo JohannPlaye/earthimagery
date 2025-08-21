@@ -9,7 +9,8 @@
       "status": "available",
       "description": "GOES-19 CONUS GEOCOLOR 2500x1500 (High Resolution)",
       "default_display": false,
-      "enabled": true
+      "enabled": true,
+      "source": "NOAA"
     },
     "GOES19.car.GEOCOLOR.2000x2000": {
       "satellite": "GOES19",
@@ -20,7 +21,8 @@
       "status": "available",
       "description": "GOES-19 Caribbean GEOCOLOR 2000x2000",
       "default_display": false,
-      "enabled": false
+      "enabled": false,
+      "source": "NOAA"
     },
     "GOES19.car.GEOCOLOR.4000x4000": {
       "satellite": "GOES19",
@@ -31,7 +33,8 @@
       "status": "available",
       "description": "GOES-19 Caribbean GEOCOLOR 4000x4000",
       "default_display": false,
-      "enabled": true
+      "enabled": true,
+      "source": "NOAA"
     },
     "GOES19.car.AirMass.4000x4000": {
       "satellite": "GOES19",
@@ -42,7 +45,8 @@
       "status": "available",
       "description": "GOES-19 Caribbean AirMass 4000x4000",
       "default_display": false,
-      "enabled": true
+      "enabled": true,
+      "source": "NOAA"
     },
     "GOES18.hi.GEOCOLOR.600x600": {
       "auto_download": true,
@@ -52,7 +56,8 @@
       "product": "GEOCOLOR",
       "resolution": "600x600",
       "default_display": false,
-      "enabled": true
+      "enabled": true,
+      "source": "NOAA"
     },
     "GOES19.CONUS.GEOCOLOR.625x375": {
       "satellite": "GOES19",
@@ -61,7 +66,8 @@
       "resolution": "625x375",
       "enabled": true,
       "auto_download": true,
-      "default_display": false
+      "default_display": false,
+      "source": "NOAA"
     },
     "GOES18.wus.GEOCOLOR.1000x1000": {
       "satellite": "GOES18",
@@ -72,7 +78,32 @@
       "status": "available",
       "description": "GOES-18 Western US GEOCOLOR 1000x1000",
       "enabled": true,
-      "default_display": true
+      "default_display": true,
+      "source": "NOAA"
+    },
+    "MTG.FullDisc.Geocolor.2000x2000": {
+      "satellite": "MTG",
+      "sector": "FullDisc",
+      "product": "Geocolor",
+      "resolution": "2000x2000",
+      "auto_download": true,
+      "status": "available",
+      "description": "EUMETSAT MTG Full Disc Geocolor 2000x2000",
+      "default_display": false,
+      "enabled": true,
+      "source": "EUMETSAT"
+    },
+    "MTG.FullDisc.VIS06.2000x2000": {
+      "satellite": "MTG",
+      "sector": "FullDisc",
+      "product": "VIS06",
+      "resolution": "2000x2000",
+      "auto_download": true,
+      "status": "available",
+      "description": "EUMETSAT MTG Full Disc VIS 0.6 2000x2000",
+      "default_display": false,
+      "enabled": true,
+      "source": "EUMETSAT"
     }
   },
   "disabled_datasets": {},

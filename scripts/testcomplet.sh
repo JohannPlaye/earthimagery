@@ -48,10 +48,13 @@ log() {
     esac
 }
 
-# Fonction pour construire le chemin de données satellite avec structure NOAA
+# Fonction pour construire le chemin de données satellite avec structure NOAA/EUMETSAT
 build_satellite_data_path() {
     local dataset_key="$1"
     local date="$2"
+    
+    # Récupérer la source du dataset depuis la configuration
+    local source=$(jq -r ".enabled_datasets[\"$dataset_key\"].source // \"UNKNOWN\"" "$CONFIG_DIR/datasets-status.json")
     
     # Conversion du dataset key en chemin: GOES19.car.GEOCOLOR.4000x4000 -> NOAA/GOES19/car/GEOCOLOR/4000x4000
     IFS='.' read -ra PARTS <<< "$dataset_key"
@@ -61,13 +64,20 @@ build_satellite_data_path() {
         local product="${PARTS[2]}"
         local resolution="${PARTS[3]}"
         
-        # Satellites NOAA (GOES) vont dans NOAA/satellite/...
-        if [[ "$satellite" =~ ^GOES[0-9]+$ ]]; then
-            echo "$DATA_DIR/NOAA/$satellite/$sector/$product/$resolution/$date"
-        else
-            # Autres satellites gardent la structure actuelle
-            echo "$DATA_DIR/$satellite/$sector/$product/$resolution/$date"
-        fi
+        case "$source" in
+            "NOAA")
+                # Structure NOAA: NOAA/satellite/sector/product/resolution/date
+                echo "$DATA_DIR/NOAA/$satellite/$sector/$product/$resolution/$date"
+                ;;
+            "EUMETSAT")
+                # Structure EUMETSAT: EUMETSAT/satellite/sector/product/date
+                echo "$DATA_DIR/EUMETSAT/$satellite/$sector/$product/$date"
+                ;;
+            *)
+                # Fallback vers structure classique pour sources inconnues
+                echo "$DATA_DIR/$satellite/$sector/$product/$resolution/$date"
+                ;;
+        esac
     else
         # Fallback vers l'ancienne méthode si le format n'est pas reconnu
         local dataset_path=$(echo "$dataset_key" | tr '.' '/')
@@ -215,12 +225,15 @@ download_active_datasets() {
             continue
         fi
         
+        # Récupérer la source du dataset
+        local source=$(jq -r ".enabled_datasets[\"$dataset_key\"].source // \"UNKNOWN\"" "$CONFIG_DIR/datasets-status.json")
+        
         # Convertir la chaîne en array
         local days_array=($days_str)
-        log "INFO" "📥 $dataset_key: ${#days_array[@]} jour(s) à télécharger"
+        log "INFO" "📥 $dataset_key ($source): ${#days_array[@]} jour(s) à télécharger"
         
         for day in "${days_array[@]}"; do
-            # Utilisation de la nouvelle fonction pour gérer la structure NOAA
+            # Utilisation de la nouvelle fonction pour gérer la structure NOAA/EUMETSAT
             local images_dir=$(build_satellite_data_path "$dataset_key" "$day")
             
             # Suppression des images corrompues (taille nulle) avant téléchargement
@@ -232,18 +245,21 @@ download_active_datasets() {
             log "INFO" "  📥 Téléchargement $dataset_key pour $day"
             total_downloads=$((total_downloads + 1))
             
+            # Utiliser smart-fetch.sh unifié pour toutes les sources
             if bash "$SCRIPT_DIR/smart-fetch.sh" dataset "$dataset_key" "$day" "$day" 2>&1 | tee -a "$LOG_FILE"; then
-                log "INFO" "    ✅ Images téléchargées pour $dataset_key le $day"
+                log "INFO" "    ✅ Images téléchargées pour $dataset_key le $day ($source)"
             else
                 log "WARN" "    ⚠️ smart-fetch.sh a échoué pour $dataset_key le $day"
                 failed_downloads=$((failed_downloads + 1))
                 
-                # Tentative de récupération avec generate-historical-data
-                log "INFO" "    ↪️ Tentative de génération historique pour $dataset_key le $day"
-                if bash "$SCRIPT_DIR/generate-historical-data.sh" "$day" "$day" 2>&1 | tee -a "$LOG_FILE"; then
-                    log "INFO" "    ✅ generate-historical-data.sh réussi pour $day"
-                else
-                    log "WARN" "    ❌ generate-historical-data.sh a aussi échoué pour $day"
+                # Tentative de récupération avec generate-historical-data pour NOAA uniquement
+                if [ "$source" = "NOAA" ]; then
+                    log "INFO" "    ↪️ Tentative de génération historique pour $dataset_key le $day"
+                    if bash "$SCRIPT_DIR/generate-historical-data.sh" "$day" "$day" 2>&1 | tee -a "$LOG_FILE"; then
+                        log "INFO" "    ✅ generate-historical-data.sh réussi pour $day"
+                    else
+                        log "WARN" "    ❌ generate-historical-data.sh a aussi échoué pour $day"
+                    fi
                 fi
             fi
         done
@@ -253,7 +269,7 @@ download_active_datasets() {
     log "INFO" "📊 Résumé téléchargements: $total_downloads tentative(s), $failed_downloads échec(s)"
     
     # Vérifier que des données ont été téléchargées
-    local image_count=$(find "$DATA_DIR" -name "*.jpg" -type f | wc -l)
+    local image_count=$(find "$DATA_DIR" -name "*.jpg" -o -name "*.png" -type f | wc -l)
     log "INFO" "📊 Images total dans le système: $image_count"
     if [ "$image_count" -eq 0 ]; then
         log "WARN" "⚠️ Aucune image dans le système"

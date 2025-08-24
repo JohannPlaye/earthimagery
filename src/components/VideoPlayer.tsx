@@ -32,15 +32,34 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
   const [playbackRate, setPlaybackRate] = useState(1);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingStage, setLoadingStage] = useState('Initialisation...');
+  const [segmentsLoaded, setSegmentsLoaded] = useState(0);
+  const [segmentsTotal, setSegmentsTotal] = useState(0);
 
   const formattedFromDate = useMemo(() => fromDate.toISOString().split('T')[0], [fromDate]);
   const formattedToDate = useMemo(() => toDate.toISOString().split('T')[0], [toDate]);
+
+  // Calculer la progression et autoriser la lecture à 2/3
+  const targetSegments = Math.ceil(segmentsTotal * 2 / 3); // 2/3 des segments = 100%
+  const progress = targetSegments > 0 ? Math.min(segmentsLoaded / targetSegments, 1) : 0;
+  const canPlay = segmentsLoaded >= targetSegments;
 
   // Reset states when dates or dataset change
   useEffect(() => {
     setIsLoading(true);
     setError(null);
+    setSegmentsLoaded(0);
+    setSegmentsTotal(0);
   }, [formattedFromDate, formattedToDate, selectedDataset]);
+
+  // Débloquer la lecture quand canPlay est vrai
+  useEffect(() => {
+    if (canPlay && isLoading && segmentsTotal > 0) {
+      setIsLoading(false);
+      setTimeout(() => {
+        videoRef.current?.play();
+      }, 500);
+    }
+  }, [canPlay, isLoading, segmentsTotal]);
 
   useEffect(() => {
     setMounted(true);
@@ -120,26 +139,117 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
 
           const hls = new Hls({
             debug: false,
-            enableWorker: false,
+            enableWorker: true,
             lowLatencyMode: false,
-            maxBufferLength: 30,
-            maxMaxBufferLength: 60,
-            maxBufferSize: 30 * 1000 * 1000,
-            maxBufferHole: 0.1,
+            // Configuration buffer plus conservative pour éviter saturation
+            maxBufferLength: 30, // Réduit pour éviter buffer full
+            maxMaxBufferLength: 60, // Réduit également
+            maxBufferSize: 100 * 1000 * 1000, // 100MB max (réduit de 200MB)
+            maxBufferHole: 0.5, 
+            // Configuration pour éviter les buffer full errors
+            backBufferLength: 10, // Garder seulement 10s derrière
+            // ADAPTATION DYNAMIQUE selon le nombre total de segments (sera ajusté après parsing)
+            liveSyncDurationCount: 8, // Valeur par défaut, sera ajustée
+            liveMaxLatencyDurationCount: 10, // Sera ajusté après parsing du manifest
+            // Paramètres agressifs pour le préchargement
+            startLevel: 0,
+            capLevelToPlayerSize: false,
+            maxLoadingDelay: 4,
+            maxFragLookUpTolerance: 0.25,
+            // Timeouts adaptés
+            manifestLoadingTimeOut: 60000,
+            manifestLoadingMaxRetry: 3,
+            levelLoadingTimeOut: 60000,
+            fragLoadingTimeOut: 300000,
+            fragLoadingMaxRetry: 3,
+            fragLoadingMaxRetryTimeout: 30000,
+            // Paramètres ABR désactivés pour forcer le chargement
+            abrEwmaFastLive: 3.0,
+            abrEwmaSlowLive: 9.0,
+            abrMaxWithRealBitrate: false,
+            // Forcer le préchargement dès le début
+            startFragPrefetch: true,
           });
 
           hlsRef.current = hls;
 
+          // Fonction de purge agressive du cache
+          const purgeOldSegments = () => {
+            if (!video || !video.buffered || video.buffered.length === 0) return;
+            
+            const currentTime = video.currentTime;
+            const purgeThreshold = 5; // Garder seulement 5 secondes derrière la position actuelle
+            
+            try {
+              for (let i = 0; i < video.buffered.length; i++) {
+                const start = video.buffered.start(i);
+                const end = video.buffered.end(i);
+                
+                // Purger tout ce qui est plus de 5 secondes derrière
+                if (end < currentTime - purgeThreshold) {
+                  console.log('🧹 Purge segment ancien:', {
+                    range: `${start.toFixed(1)}s - ${end.toFixed(1)}s`,
+                    currentTime: currentTime.toFixed(1)
+                  });
+                  
+                  const hlsInstance = hlsRef.current as any;
+                  if (hlsInstance.bufferController && hlsInstance.bufferController.flushBuffer) {
+                    hlsInstance.bufferController.flushBuffer(start, end, 'video');
+                  }
+                }
+                // Purger partiellement les segments qui commencent trop tôt
+                else if (start < currentTime - purgeThreshold && end > currentTime - purgeThreshold) {
+                  const purgeEnd = currentTime - purgeThreshold;
+                  if (purgeEnd > start) {
+                    console.log('🧹 Purge segment partiel:', {
+                      range: `${start.toFixed(1)}s - ${purgeEnd.toFixed(1)}s`,
+                      currentTime: currentTime.toFixed(1)
+                    });
+                    
+                    const hlsInstance = hlsRef.current as any;
+                    if (hlsInstance.bufferController && hlsInstance.bufferController.flushBuffer) {
+                      hlsInstance.bufferController.flushBuffer(start, purgeEnd, 'video');
+                    }
+                  }
+                }
+              }
+            } catch (err) {
+              console.warn('Erreur lors de la purge:', err);
+            }
+          };
+
           // Essential event listeners
           hls.on(Hls.Events.MANIFEST_PARSED, (event: string, data: unknown) => {
-            const eventData = data as { levels?: unknown[]; totalduration?: number };
+            const eventData = data as { levels?: { details?: { fragments?: unknown[] } }[]; totalduration?: number };
+            const total = eventData.levels?.[0]?.details?.fragments?.length || 0;
+            
+            // Configuration adaptative selon le nombre de segments
+            const targetSegments = Math.ceil(total * 2 / 3);
+            const optimalSyncCount = Math.min(total, Math.max(targetSegments + 1, 3));
+            
             console.log('✅ Manifest parsed successfully:', {
               levels: eventData.levels?.length || 0,
-              duration: eventData.totalduration
+              duration: eventData.totalduration,
+              totalSegments: total,
+              targetSegments: targetSegments,
+              optimalSyncCount: optimalSyncCount
             });
-            setLoadingStage('Préparation de la vidéo...');
-            setLoadingProgress(70);
-            setIsLoading(false);
+            
+            // Adapter la configuration HLS selon le nombre de segments
+            if (hls.config) {
+              hls.config.liveSyncDurationCount = optimalSyncCount;
+              hls.config.liveMaxLatencyDurationCount = Math.min(optimalSyncCount + 2, total);
+              console.log('🔧 Configuration HLS adaptée:', {
+                liveSyncDurationCount: hls.config.liveSyncDurationCount,
+                liveMaxLatencyDurationCount: hls.config.liveMaxLatencyDurationCount
+              });
+            }
+            
+            setSegmentsTotal(total);
+            setSegmentsLoaded(0);
+            setLoadingStage('Chargement des segments...');
+            setLoadingProgress(0);
+            
             // Appliquer la vitesse de lecture après parsing
             if (video) video.playbackRate = playbackRate;
           });
@@ -156,12 +266,100 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
           });
 
           hls.on(Hls.Events.FRAG_LOADED, (event: string, data: unknown) => {
-            const eventData = data as { frag?: { url?: string; duration?: number } };
+            const eventData = data as { frag?: { url?: string; duration?: number; sn?: number } };
             console.log('✅ Fragment loaded:', {
               url: eventData.frag?.url,
-              duration: eventData.frag?.duration
+              duration: eventData.frag?.duration,
+              segmentNumber: eventData.frag?.sn,
+              progress: `${segmentsLoaded + 1}/${segmentsTotal} (${Math.round(((segmentsLoaded + 1) / targetSegments) * 100)}%)`
+            });
+            
+            // Incrémenter le compteur de segments chargés
+            setSegmentsLoaded(prev => prev + 1);
+            
+            // Purger seulement si la vidéo est en cours de lecture (pas pendant le préchargement)
+            if (video.currentTime > 0 && !video.paused) {
+              setTimeout(() => {
+                purgeOldSegments();
+              }, 1000);
+            }
+          });
+
+          // Logs détaillés pour traquer les échecs de chargement
+          hls.on(Hls.Events.FRAG_LOADING, (event: string, data: unknown) => {
+            const eventData = data as { frag?: { url?: string; sn?: number } };
+            console.log('🔄 Fragment loading:', {
+              url: eventData.frag?.url,
+              segmentNumber: eventData.frag?.sn,
+              currentProgress: `${segmentsLoaded}/${segmentsTotal}`
             });
           });
+
+          hls.on(Hls.Events.FRAG_LOAD_EMERGENCY_ABORTED, (event: string, data: unknown) => {
+            const eventData = data as { frag?: { url?: string; sn?: number } };
+            console.warn('⚠️ Fragment load emergency aborted:', {
+              url: eventData.frag?.url,
+              segmentNumber: eventData.frag?.sn
+            });
+          });
+
+          // Surveillance du blocage silencieux
+          let lastFragmentTime = Date.now();
+          hls.on(Hls.Events.FRAG_LOADING, () => {
+            lastFragmentTime = Date.now();
+          });
+
+          // Détection de blocage après 30 secondes sans nouveau fragment
+          const checkStalling = setInterval(() => {
+            if (Date.now() - lastFragmentTime > 30000 && segmentsLoaded < targetSegments) {
+              console.warn('🚨 BLOCAGE DÉTECTÉ:', {
+                segmentsLoaded,
+                targetSegments,
+                timeSinceLastFragment: `${(Date.now() - lastFragmentTime) / 1000}s`,
+                action: 'Tentative de relance'
+              });
+              
+              // Forcer une relance
+              try {
+                if (hlsRef.current) {
+                  (hlsRef.current as any).startLoad();
+                }
+              } catch (err) {
+                console.warn('Erreur lors de la relance:', err);
+              }
+            }
+            
+            // NOUVEAU : Forcer le chargement si on a pas assez de segments après 10 secondes
+            if (Date.now() - lastFragmentTime > 10000 && segmentsLoaded < targetSegments && segmentsLoaded > 0) {
+              console.warn('🔧 Timeout atteint:', {
+                segmentsLoaded,
+                targetSegments,
+                action: 'Lancement avec segments disponibles'
+              });
+              
+              // Au lieu de forcer en boucle, accepter ce qu'on a et lancer
+              console.log('🎯 Lancement anticipé avec', segmentsLoaded, 'segments sur', targetSegments, 'requis');
+              
+              // Marquer comme prêt
+              setIsLoading(false);
+              setLoadingProgress(100);
+              setLoadingStage('Vidéo prête !');
+              
+              // Lancer la vidéo
+              if (videoRef.current) {
+                videoRef.current.play().catch(err => {
+                  console.warn('Erreur lecture auto:', err);
+                });
+              }
+              
+              lastFragmentTime = Date.now(); // Reset pour éviter répétition
+            }
+          }, 5000);
+
+          // Nettoyer l'intervalle lors du cleanup
+          const originalCleanup = () => {
+            clearInterval(checkStalling);
+          };
 
           hls.on(Hls.Events.ERROR, (event: string, data: unknown) => {
             const eventData = data as { type?: string; details?: string; fatal?: boolean; url?: string };
@@ -171,6 +369,30 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
               fatal: eventData.fatal,
               url: eventData.url
             });
+            
+            // Gestion intelligente des erreurs de buffer plein
+            if (eventData.details === 'bufferFullError') {
+              console.log('🧹 Buffer plein détecté - stratégie conservation');
+              
+              // Ne pas purger si on a déjà atteint l'objectif
+              if (segmentsLoaded >= targetSegments) {
+                console.log('🎯 Objectif atteint, on ignore les nouveaux chargements');
+                return; // Ignorer les erreurs si on a assez de segments
+              }
+              
+              // Purge plus agressive uniquement si nécessaire
+              purgeOldSegments();
+              
+              // Petite pause avant relance pour éviter boucle infinie
+              setTimeout(() => {
+                if (hlsRef.current && segmentsLoaded < targetSegments) {
+                  console.log('🔄 Relance chargement après purge');
+                  (hlsRef.current as any).startLoad();
+                }
+              }, 1000); // 1 seconde de pause
+              
+              return; // Ne pas traiter comme erreur fatale
+            }
             
             if (eventData.fatal) {
               switch (eventData.type) {
@@ -258,6 +480,20 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
             console.log('📺 Video ready to play');
           });
 
+          // Purge périodique pendant la lecture pour maintenir un cache léger
+          video.addEventListener('timeupdate', () => {
+            if (video.currentTime > 0) {
+              const now = Date.now();
+              const lastPurge = (video as any).lastPurgeTime || 0;
+              
+              // Purger toutes les 10 secondes pendant la lecture
+              if (now - lastPurge > 10000) {
+                purgeOldSegments();
+                (video as any).lastPurgeTime = now;
+              }
+            }
+          });
+
         } else {
           setError('HLS not supported in this browser');
         }
@@ -335,22 +571,27 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
                   fill="none"
                   strokeLinecap="round"
                   strokeDasharray={226.19}
-                  strokeDashoffset={226.19 - (226.19 * loadingProgress) / 100}
+                  strokeDashoffset={226.19 - (226.19 * progress)}
                   className="transition-all duration-500 ease-out"
                 />
               </svg>
               {/* Pourcentage au centre */}
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="text-purple-300 font-semibold text-lg">
-                  {Math.round(loadingProgress)}%
+                  {Math.round(progress * 100)}%
                 </span>
               </div>
             </div>
             
             {/* Étape de chargement */}
             <div className="text-center">
-              <div className="text-purple-300 font-medium mb-1">🛰️ Chargement de la vidéo</div>
-              <div className="text-gray-400 text-sm">{loadingStage}</div>
+              <div className="text-purple-300 font-medium mb-1">🛰️ Préchargement vidéo</div>
+              <div className="text-gray-400 text-sm">
+                {segmentsLoaded}/{targetSegments} segments requis chargés
+              </div>
+              {canPlay && segmentsTotal > 0 && (
+                <div className="text-green-400 mt-2">✅ Lecture possible !</div>
+              )}
             </div>
             
             {/* Animation de points */}

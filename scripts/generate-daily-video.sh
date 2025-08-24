@@ -13,7 +13,7 @@ DATA_ROOT_PATH="$PROJECT_ROOT/public/data"
 
 # Configuration FFmpeg
 VIDEO_FPS=24  # 24 FPS pour les vraies données satellitaires
-VIDEO_CRF=23
+VIDEO_CRF=19
 VIDEO_PRESET="medium"
 HLS_SEGMENT_TIME=10
 

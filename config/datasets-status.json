@@ -17,7 +17,7 @@
       "sector": "car",
       "product": "GEOCOLOR",
       "resolution": "2000x2000",
-      "auto_download": false,
+      "auto_download": true,
       "status": "available",
       "description": "GOES-19 Caribbean GEOCOLOR 2000x2000",
       "default_display": false,
@@ -107,6 +107,6 @@
     }
   },
   "disabled_datasets": {},
-  "discovered_datasets": {
-  }
+  "discovered_datasets": {},
+  "last_update": "2025-08-23T21:24:24+02:00"
 }

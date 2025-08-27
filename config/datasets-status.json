@@ -1,5 +1,21 @@
 {
   "enabled_datasets": {
+    "GOES19.FD.GEOCOLOR.10848x10848": {
+      "satellite": "GOES19",
+      "sector": "FD",
+      "product": "GEOCOLOR",
+      "resolution": "10848x10848",
+      "auto_download": true,
+      "status": "available",
+      "description": "GOES-19 Full Disk GEOCOLOR 10848x10848 (Ultra-High Resolution - Images only)",
+      "default_display": false,
+      "enabled": true,
+      "source": "NOAA",
+      "virtual_dataset": null,
+      "parent_dataset": null,
+      "zone": null,
+      "video_generation": false
+    },
     "GOES19.CONUS.GEOCOLOR.2500x1500": {
       "satellite": "GOES19",
       "sector": "CONUS",
@@ -10,64 +26,32 @@
       "description": "GOES-19 CONUS GEOCOLOR 2500x1500 (High Resolution)",
       "default_display": false,
       "enabled": true,
-      "source": "NOAA"
+      "source": "NOAA",
+      "virtual_dataset": null,
+      "parent_dataset": null,
+      "zone": null,
+      "video_generation": true
     },
-    "GOES19.car.GEOCOLOR.2000x2000": {
+    "GOES19.VIRTUALATLANTICHURRICANE.GEOCOLOR.2212x1106": {
       "satellite": "GOES19",
-      "sector": "car",
+      "sector": "VIRTUALATLANTICHURRICANE",
       "product": "GEOCOLOR",
-      "resolution": "2000x2000",
+      "resolution": "2212x1106",
       "auto_download": true,
       "status": "available",
-      "description": "GOES-19 Caribbean GEOCOLOR 2000x2000",
-      "default_display": false,
-      "enabled": false,
-      "source": "NOAA"
-    },
-    "GOES19.car.GEOCOLOR.4000x4000": {
-      "satellite": "GOES19",
-      "sector": "car",
-      "product": "GEOCOLOR",
-      "resolution": "4000x4000",
-      "auto_download": true,
-      "status": "available",
-      "description": "GOES-19 Caribbean GEOCOLOR 4000x4000",
-      "default_display": false,
+      "description": "GOES-19 Virtual Atlantic Hurricane Highway GEOCOLOR 2212x1106",
+      "default_display": true,
       "enabled": true,
-      "source": "NOAA"
-    },
-    "GOES19.car.AirMass.4000x4000": {
-      "satellite": "GOES19",
-      "sector": "car",
-      "product": "AirMass",
-      "resolution": "4000x4000",
-      "auto_download": true,
-      "status": "available",
-      "description": "GOES-19 Caribbean AirMass 4000x4000",
-      "default_display": false,
-      "enabled": true,
-      "source": "NOAA"
-    },
-    "GOES18.hi.GEOCOLOR.600x600": {
-      "auto_download": true,
-      "description": "GOES-18 Hawaii GEOCOLOR 600x600",
-      "satellite": "GOES18",
-      "sector": "hi",
-      "product": "GEOCOLOR",
-      "resolution": "600x600",
-      "default_display": false,
-      "enabled": true,
-      "source": "NOAA"
-    },
-    "GOES19.CONUS.GEOCOLOR.625x375": {
-      "satellite": "GOES19",
-      "sector": "CONUS",
-      "product": "GEOCOLOR",
-      "resolution": "625x375",
-      "enabled": true,
-      "auto_download": true,
-      "default_display": false,
-      "source": "NOAA"
+      "source": "NOAA",
+      "virtual_dataset": true,
+      "parent_dataset": "GOES19.FD.GEOCOLOR.10848x10848",
+      "zone": [
+        2000,
+        1000,
+        10848,
+        5424
+      ],
+      "video_generation": true
     },
     "GOES18.wus.GEOCOLOR.1000x1000": {
       "satellite": "GOES18",
@@ -78,8 +62,12 @@
       "status": "available",
       "description": "GOES-18 Western US GEOCOLOR 1000x1000",
       "enabled": true,
-      "default_display": true,
-      "source": "NOAA"
+      "default_display": false,
+      "source": "NOAA",
+      "virtual_dataset": null,
+      "parent_dataset": null,
+      "zone": null,
+      "video_generation": true
     },
     "MTG.FullDisc.Geocolor.2000x2000": {
       "satellite": "MTG",
@@ -91,7 +79,11 @@
       "description": "EUMETSAT MTG Full Disc Geocolor 2000x2000",
       "default_display": false,
       "enabled": true,
-      "source": "EUMETSAT"
+      "source": "EUMETSAT",
+      "virtual_dataset": null,
+      "parent_dataset": null,
+      "zone": null,
+      "video_generation": true
     },
     "MTG.FullDisc.VIS06.2000x2000": {
       "satellite": "MTG",
@@ -103,10 +95,92 @@
       "description": "EUMETSAT MTG Full Disc VIS 0.6 2000x2000",
       "default_display": false,
       "enabled": true,
-      "source": "EUMETSAT"
+      "source": "EUMETSAT",
+      "virtual_dataset": null,
+      "parent_dataset": null,
+      "zone": null,
+      "video_generation": true
+    },
+    "GOES19.car.GEOCOLOR.2000x2000": {
+      "satellite": "GOES19",
+      "sector": "car",
+      "product": "GEOCOLOR",
+      "resolution": "2000x2000",
+      "auto_download": true,
+      "status": "available",
+      "description": "GOES-19 Caribbean GEOCOLOR 2000x2000",
+      "default_display": false,
+      "enabled": false,
+      "source": "NOAA",
+      "virtual_dataset": null,
+      "parent_dataset": null,
+      "zone": null,
+      "video_generation": true
     }
   },
-  "disabled_datasets": {},
+  "disabled_datasets": {
+    "GOES18.hi.GEOCOLOR.600x600": {
+      "auto_download": false,
+      "description": "GOES-18 Hawaii GEOCOLOR 600x600",
+      "satellite": "GOES18",
+      "sector": "hi",
+      "product": "GEOCOLOR",
+      "resolution": "600x600",
+      "default_display": false,
+      "enabled": true,
+      "source": "NOAA",
+      "virtual_dataset": null,
+      "parent_dataset": null,
+      "zone": null,
+      "video_generation": true
+    },
+    "GOES19.CONUS.GEOCOLOR.625x375": {
+      "satellite": "GOES19",
+      "sector": "CONUS",
+      "product": "GEOCOLOR",
+      "resolution": "625x375",
+      "enabled": true,
+      "auto_download": false,
+      "default_display": false,
+      "source": "NOAA",
+      "virtual_dataset": null,
+      "parent_dataset": null,
+      "zone": null,
+      "video_generation": true
+    },
+    "GOES19.car.AirMass.4000x4000": {
+      "satellite": "GOES19",
+      "sector": "car",
+      "product": "AirMass",
+      "resolution": "4000x4000",
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-19 Caribbean AirMass 4000x4000",
+      "default_display": false,
+      "enabled": true,
+      "source": "NOAA",
+      "virtual_dataset": null,
+      "parent_dataset": null,
+      "zone": null,
+      "video_generation": true
+    },
+    "GOES19.car.GEOCOLOR.4000x4000": {
+      "satellite": "GOES19",
+      "sector": "car",
+      "product": "GEOCOLOR",
+      "resolution": "4000x4000",
+      "auto_download": false,
+      "status": "available",
+      "description": "GOES-19 Caribbean GEOCOLOR 4000x4000",
+      "default_display": false,
+      "enabled": true,
+      "source": "NOAA",
+      "virtual_dataset": null,
+      "parent_dataset": null,
+      "zone": null,
+      "video_generation": true
+    }
+  },
   "discovered_datasets": {},
-  "last_update": "2025-08-23T21:24:24+02:00"
+  "last_update": "2025-08-27T11:29:33+02:00"
 }

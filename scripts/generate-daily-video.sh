@@ -86,6 +86,34 @@ find_images_directory() {
     fi
 }
 
+# Fonction pour vérifier si un dataset est virtuel et récupérer ses propriétés
+get_virtual_dataset_info() {
+    local dataset_key="$1"
+    local config_file="$SCRIPT_DIR/../config/datasets-status.json"
+    
+    if [ ! -f "$config_file" ]; then
+        echo "null"
+        return 1
+    fi
+    
+    # Vérifier si le dataset est virtuel et récupérer ses informations
+    local virtual_info=$(jq -r --arg key "$dataset_key" '
+        .enabled_datasets[$key] | 
+        if .virtual_dataset == true then 
+            {
+                "is_virtual": true,
+                "parent_dataset": .parent_dataset,
+                "zone": .zone,
+                "resolution": .resolution
+            }
+        else 
+            {"is_virtual": false}
+        end
+    ' "$config_file" 2>/dev/null)
+    
+    echo "$virtual_info"
+}
+
 # Fonction pour générer une vidéo pour un dataset
 generate_video_for_dataset() {
     local dataset_key="$1"
@@ -93,8 +121,33 @@ generate_video_for_dataset() {
     
     log "🎬 Génération vidéo pour $dataset_key - $target_date"
     
-    # Détermination du dossier d'images
-    local images_dir=$(find_images_directory "$dataset_key" "$target_date")
+    # Vérifier si c'est un dataset virtuel
+    local virtual_info=$(get_virtual_dataset_info "$dataset_key")
+    local is_virtual=$(echo "$virtual_info" | jq -r '.is_virtual // false')
+    
+    local images_dir=""
+    local source_dataset_key="$dataset_key"
+    
+    if [ "$is_virtual" = "true" ]; then
+        # Dataset virtuel : utiliser le parent dataset pour trouver les images
+        local parent_dataset=$(echo "$virtual_info" | jq -r '.parent_dataset // ""')
+        local zone_array=$(echo "$virtual_info" | jq -r '.zone // []')
+        local target_resolution=$(echo "$virtual_info" | jq -r '.resolution // ""')
+        
+        if [ -z "$parent_dataset" ] || [ "$zone_array" = "[]" ]; then
+            log "❌ Dataset virtuel mal configuré: parent_dataset ou zone manquant"
+            return 1
+        fi
+        
+        log "🔄 Dataset virtuel détecté - Parent: $parent_dataset"
+        log "📐 Zone crop: $zone_array → Résolution finale: $target_resolution"
+        
+        source_dataset_key="$parent_dataset"
+        images_dir=$(find_images_directory "$parent_dataset" "$target_date")
+    else
+        # Dataset normal
+        images_dir=$(find_images_directory "$dataset_key" "$target_date")
+    fi
     
     if [ -z "$images_dir" ] || [ ! -d "$images_dir" ]; then
         log "❌ Dossier d'images non trouvé: $images_dir"
@@ -146,6 +199,36 @@ generate_video_for_dataset() {
         log "📊 Détection haute résolution (2000x2000): optimisation modérée"
     fi
 
+    # Construction des filtres vidéo selon le type de dataset
+    local video_filters="pad=ceil(iw/2)*2:ceil(ih/2)*2"
+    
+    if [ "$is_virtual" = "true" ]; then
+        # Dataset virtuel : ajouter crop et redimensionnement
+        local zone_array=$(echo "$virtual_info" | jq -r '.zone // []')
+        local target_resolution=$(echo "$virtual_info" | jq -r '.resolution // ""')
+        
+        # Extraire les coordonnées du crop [x1,y1,x2,y2]
+        local x1=$(echo "$zone_array" | jq -r '.[0] // 0')
+        local y1=$(echo "$zone_array" | jq -r '.[1] // 0')
+        local x2=$(echo "$zone_array" | jq -r '.[2] // 0')
+        local y2=$(echo "$zone_array" | jq -r '.[3] // 0')
+        
+        # Calculer largeur et hauteur du crop
+        local crop_width=$((x2 - x1))
+        local crop_height=$((y2 - y1))
+        
+        # Extraire la résolution finale
+        local final_width=$(echo "$target_resolution" | cut -d'x' -f1)
+        local final_height=$(echo "$target_resolution" | cut -d'x' -f2)
+        
+        if [ "$crop_width" -gt 0 ] && [ "$crop_height" -gt 0 ] && [ "$final_width" -gt 0 ] && [ "$final_height" -gt 0 ]; then
+            video_filters="crop=${crop_width}:${crop_height}:${x1}:${y1},scale=${final_width}:${final_height},pad=ceil(iw/2)*2:ceil(ih/2)*2"
+            log "🎯 Filtres vidéo virtuels: crop(${crop_width}x${crop_height} @ ${x1},${y1}) → scale(${final_width}x${final_height})"
+        else
+            log "⚠️ Paramètres de crop invalides, utilisation des filtres standard"
+        fi
+    fi
+
     # Génération vidéo MP4 temporaire
     log "🔄 Génération MP4 temporaire..."
     local temp_video="/tmp/temp-$dataset_key-$target_date.mp4"
@@ -167,7 +250,7 @@ generate_video_for_dataset() {
             -i "$(dirname "$first_image")/*.png" \
             -r "$VIDEO_FPS" \
             -threads "$ffmpeg_threads" \
-            -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2" \
+            -vf "$video_filters" \
             -c:v libx264 \
             -crf "$VIDEO_CRF" \
             -preset "$video_preset" \
@@ -189,7 +272,7 @@ generate_video_for_dataset() {
                 -threads $ffmpeg_threads \
                 -i <(sed \"s/^/file '/\" \"$images_list\" | sed \"s/\$/'/\" ) \
                 -r $VIDEO_FPS \
-                -vf \"pad=ceil(iw/2)*2:ceil(ih/2)*2\" \
+                -vf \"$video_filters\" \
                 -c:v libx264 \
                 -crf $((VIDEO_CRF + 2)) \
                 -preset $video_preset \
@@ -208,7 +291,7 @@ generate_video_for_dataset() {
                 -threads $ffmpeg_threads \
                 -i <(sed \"s/^/file '/\" \"$images_list\" | sed \"s/\$/'/\" ) \
                 -r $VIDEO_FPS \
-                -vf \"pad=ceil(iw/2)*2:ceil(ih/2)*2\" \
+                -vf \"$video_filters\" \
                 -c:v libx264 \
                 -crf $VIDEO_CRF \
                 -preset $video_preset \

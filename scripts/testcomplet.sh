@@ -133,8 +133,8 @@ detect_days_to_process() {
     local today=$(date +%Y-%m-%d)
     local yesterday=$(date -d "yesterday" +%Y-%m-%d)
     
-    # Récupérer la liste des datasets actifs
-    local datasets=($(jq -r '[.enabled_datasets // {} | to_entries[]] | .[] | select(.value.auto_download == true) | .key' "$CONFIG_DIR/datasets-status.json"))
+    # Récupérer la liste des datasets actifs (incluant les datasets virtuels pour détection vidéo)
+    local datasets=($(jq -r '[.enabled_datasets // {} | to_entries[]] | .[] | select(.value.auto_download == true or .value.virtual_dataset == true) | .key' "$CONFIG_DIR/datasets-status.json"))
     
     log "INFO" "Analyse de ${#datasets[@]} dataset(s) actif(s) sur les 10 derniers jours..."
     
@@ -144,7 +144,7 @@ detect_days_to_process() {
         local days_for_dataset=()
         
         # Analyser les 10 derniers jours pour ce dataset spécifique
-        for i in {0..9}; do
+        for i in {0..1}; do
             local day=$(date -d "$today -$i day" +%Y-%m-%d)
             local hls_dataset_dir="$DATA_DIR/hls/$dataset_path/$day"
             
@@ -207,8 +207,8 @@ download_active_datasets() {
     done
     log "INFO" "✅ Tous les scripts de production sont disponibles"
     
-    # Récupérer la liste des datasets actifs (auto_download: true)
-    local datasets=($(jq -r '[.enabled_datasets // {} | to_entries[]] | .[] | select(.value.auto_download == true) | .key' "$CONFIG_DIR/datasets-status.json"))
+    # Récupérer la liste des datasets actifs (auto_download: true) EXCLUANT les datasets virtuels
+    local datasets=($(jq -r '[.enabled_datasets // {} | to_entries[]] | .[] | select(.value.auto_download == true and (.value.virtual_dataset != true)) | .key' "$CONFIG_DIR/datasets-status.json"))
     if [ ${#datasets[@]} -eq 0 ]; then
         log "WARN" "Aucun dataset actif trouvé pour le téléchargement."
         return 1
@@ -295,8 +295,8 @@ generate_daily_videos() {
         return 0
     fi
     
-    # Récupérer la liste des datasets actifs
-    local datasets=($(jq -r '[.enabled_datasets // {} | to_entries[]] | .[] | select(.value.auto_download == true) | .key' "$CONFIG_DIR/datasets-status.json"))
+    # Récupérer la liste des datasets avec génération vidéo activée (incluant les datasets virtuels)
+    local datasets=($(jq -r '[.enabled_datasets // {} | to_entries[]] | .[] | select((.value.auto_download == true or .value.virtual_dataset == true) and (.value.video_generation != false)) | .key' "$CONFIG_DIR/datasets-status.json"))
     
     local total_generations=0
     local successful_generations=0
@@ -314,8 +314,33 @@ generate_daily_videos() {
         log "INFO" "🎬 $dataset_key: ${#days_array[@]} jour(s) à traiter"
         
         for day in "${days_array[@]}"; do
-            # Utilisation de la nouvelle fonction pour gérer la structure NOAA
-            local images_dir=$(build_satellite_data_path "$dataset_key" "$day")
+            # Vérifier si c'est un dataset virtuel
+            local virtual_info=$(jq -r --arg key "$dataset_key" '
+                .enabled_datasets[$key] | 
+                if .virtual_dataset == true then 
+                    {"is_virtual": true, "parent_dataset": .parent_dataset}
+                else 
+                    {"is_virtual": false}
+                end
+            ' "$CONFIG_DIR/datasets-status.json" 2>/dev/null)
+            
+            local is_virtual=$(echo "$virtual_info" | jq -r '.is_virtual // false')
+            local images_dir=""
+            
+            if [ "$is_virtual" = "true" ]; then
+                # Dataset virtuel : utiliser le dossier d'images du parent
+                local parent_dataset=$(echo "$virtual_info" | jq -r '.parent_dataset // ""')
+                if [ -n "$parent_dataset" ]; then
+                    images_dir=$(build_satellite_data_path "$parent_dataset" "$day")
+                    log "INFO" "  🔄 Dataset virtuel $dataset_key → utilise images de $parent_dataset"
+                else
+                    log "WARN" "  ❌ Dataset virtuel $dataset_key sans parent_dataset défini"
+                    continue
+                fi
+            else
+                # Dataset normal
+                images_dir=$(build_satellite_data_path "$dataset_key" "$day")
+            fi
             
             # Suppression des images corrompues (taille nulle)
             local corrupted_count=$(find "$images_dir" -type f \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" \) -size 0 -delete -print 2>/dev/null | wc -l)

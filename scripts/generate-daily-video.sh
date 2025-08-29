@@ -68,8 +68,8 @@ find_images_directory() {
                 echo "$DATA_ROOT_PATH/NOAA/$satellite/$sector/$product/$resolution/$date"
                 ;;
             "EUMETSAT")
-                # Structure EUMETSAT: EUMETSAT/satellite/sector/product/date
-                echo "$DATA_ROOT_PATH/EUMETSAT/$satellite/$sector/$product/$date"
+                # Structure EUMETSAT: EUMETSAT/satellite/sector/product/resolution/date
+                echo "$DATA_ROOT_PATH/EUMETSAT/$satellite/$sector/$product/$resolution/$date"
                 ;;
             *)
                 # Fallback vers structure NOAA pour satellites GOES (rétrocompatibilité)

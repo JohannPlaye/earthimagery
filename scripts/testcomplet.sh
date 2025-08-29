@@ -70,8 +70,8 @@ build_satellite_data_path() {
                 echo "$DATA_DIR/NOAA/$satellite/$sector/$product/$resolution/$date"
                 ;;
             "EUMETSAT")
-                # Structure EUMETSAT: EUMETSAT/satellite/sector/product/date
-                echo "$DATA_DIR/EUMETSAT/$satellite/$sector/$product/$date"
+                # Structure EUMETSAT: EUMETSAT/satellite/sector/product/resolution/date
+                echo "$DATA_DIR/EUMETSAT/$satellite/$sector/$product/$resolution/$date"
                 ;;
             *)
                 # Fallback vers structure classique pour sources inconnues

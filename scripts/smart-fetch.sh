@@ -43,8 +43,8 @@ build_satellite_data_path() {
             echo "$DATA_ROOT_PATH/NOAA/$satellite/$sector/$product/$resolution/$date"
             ;;
         "EUMETSAT")
-            # Structure EUMETSAT: EUMETSAT/satellite/sector/product/date
-            echo "$DATA_ROOT_PATH/EUMETSAT/$satellite/$sector/$product/$date"
+            # Structure EUMETSAT: EUMETSAT/satellite/sector/product/resolution/date
+            echo "$DATA_ROOT_PATH/EUMETSAT/$satellite/$sector/$product/$resolution/$date"
             ;;
         *)
             # Fallback vers structure NOAA pour satellites GOES (rétrocompatibilité)
@@ -334,9 +334,14 @@ download_eumetsat_images() {
     # Configuration spécifique selon le produit
     local layer=""
     local bbox=""
+    # Extraire la résolution du dataset (ex: 2000x2000 ou 4000x4000)
     local width=2000
     local height=2000
-    
+    if [[ "$resolution" =~ ^([0-9]+)x([0-9]+)$ ]]; then
+        width="${BASH_REMATCH[1]}"
+        height="${BASH_REMATCH[2]}"
+    fi
+
     case "$product" in
         "Geocolor")
             layer="mtg_fd:rgb_geocolour"

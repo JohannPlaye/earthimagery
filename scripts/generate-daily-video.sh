@@ -236,10 +236,10 @@ generate_video_for_dataset() {
     
     # Détection du source pour adapter la méthode FFmpeg
     local use_pattern_input=false
-    if [[ "$dataset_key" == MTG.* ]]; then
-        # Pour EUMETSAT, utiliser le pattern d'entrée pour forcer la framerate
+    # Pour EUMETSAT (MTG ou MSG), utiliser le pattern glob
+    if [[ "$dataset_key" == MTG.* || "$dataset_key" == MSG.* ]]; then
         use_pattern_input=true
-        log "📊 Détection EUMETSAT: utilisation du pattern d'entrée pour corriger les timestamps"
+        log "📊 Détection EUMETSAT (MTG/MSG): utilisation du pattern glob pour les images PNG"
     fi
     
     if [ "$use_pattern_input" = true ]; then

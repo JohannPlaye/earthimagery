@@ -334,9 +334,13 @@ download_eumetsat_images() {
     # Configuration spécifique selon le produit
     local layer=""
     local bbox=""
-    # Extraire la résolution du dataset (ex: 2000x2000 ou 4000x4000)
     local width=2000
     local height=2000
+
+    # Lire la zone depuis le JSON si présente
+    local zone_json=$(jq -r ".enabled_datasets[\"$dataset_key\"].zone" "$DATASETS_STATUS_FILE" 2>/dev/null)
+
+    # Extraire la résolution du dataset (ex: 2000x2000 ou 4000x4000)
     if [[ "$resolution" =~ ^([0-9]+)x([0-9]+)$ ]]; then
         width="${BASH_REMATCH[1]}"
         height="${BASH_REMATCH[2]}"
@@ -345,11 +349,12 @@ download_eumetsat_images() {
     case "$product" in
         "Geocolor")
             layer="mtg_fd:rgb_geocolour"
-            bbox="-80,-60,80,80"  # Europe/Afrique
             ;;
         "VIS06")
             layer="mtg_fd:vis06_hrfi"
-            bbox="-80,-60,80,80"
+            ;;
+        "WaterVapor")
+            layer="msg_fes:wv062"
             ;;
         *)
             log "❌ Produit EUMETSAT non supporté: $product"
@@ -357,6 +362,22 @@ download_eumetsat_images() {
             return 1
             ;;
     esac
+
+    # Si satellite=MTG ou MSG et zone non null, utiliser la zone comme bbox et la résolution comme width/height
+    if ([[ "$satellite" == "MTG" ]] || [[ "$satellite" == "MSG" ]]) && [[ "$zone_json" != "null" && "$zone_json" != "" ]]; then
+        # zone_json est un tableau JSON, ex: [-7,51,11,41]
+        # On extrait les valeurs et construit bbox
+        local minLon=$(echo "$zone_json" | jq '.[0]')
+        local minLat=$(echo "$zone_json" | jq '.[1]')
+        local maxLon=$(echo "$zone_json" | jq '.[2]')
+        local maxLat=$(echo "$zone_json" | jq '.[3]')
+        bbox="$minLon,$minLat,$maxLon,$maxLat"
+        # width/height déjà extraits de la résolution
+        log "🗺️  Utilisation d'une emprise personnalisée pour $dataset_key : bbox=$bbox, width=$width, height=$height"
+    else
+        # Sinon, bbox par défaut
+        bbox="-80,-60,80,80"
+    fi
     
     # Créer le dossier de destination
     local output_dir=$(build_satellite_data_path "$satellite" "$sector" "$product" "$resolution" "$target_date")
@@ -397,7 +418,7 @@ download_eumetsat_images() {
     while [ $current_time -le $effective_end_time ]; do
         
         local timestamp=$(date -d "@$current_time" -u +%Y-%m-%dT%H:%M:%SZ)
-        local filename_prefix="mtg_$(echo "$product" | tr '[:upper:]' '[:lower:]')"
+        local filename_prefix="${satellite}_$(echo "$product" | tr '[:upper:]' '[:lower:]')"
         local filename="${filename_prefix}_$(echo "$timestamp" | sed 's/[:-]//g' | cut -c1-15).png"
         local output_path="$output_dir/$filename"
         

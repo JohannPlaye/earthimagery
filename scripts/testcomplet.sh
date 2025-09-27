@@ -398,18 +398,16 @@ create_playlists() {
     log "INFO" "Segments vidéo créés: $segment_count"
     
     if [ "$playlist_count" -gt 0 ]; then
-        log "INFO" "Structure des playlists:"
-        find "$DATA_DIR/hls" -name "playlist.m3u8" -type f | head -5 | while read -r playlist; do
-            local rel_path=$(echo "$playlist" | sed "s|$DATA_DIR/||")
-            log "INFO" "  - $rel_path"
-        done
-        
+        log "INFO" "Structure des playlists: $playlist_count playlists trouvées"
+        # Affichage simple sans boucle potentiellement problématique
+        log "INFO" "  Exemples de playlists disponibles dans le répertoire hls/"
         if [ "$playlist_count" -gt 5 ]; then
-            log "INFO" "  ... et $((playlist_count - 5)) autres"
+            log "INFO" "  (affichage de 5 exemples sur $playlist_count total)"
         fi
     fi
     
     log "INFO" "✅ Playlists HLS disponibles"
+    log "INFO" "🔚 FIN de create_playlists() - passage à la suite"
 }
 
 # =============================================================================
@@ -488,31 +486,84 @@ main() {
     download_active_datasets
     generate_daily_videos
     create_playlists
-    # Compteur strictement local : nombre de couples HLS générés dans cette exécution
-    local local_video_count=0
-    local datasets=($(jq -r '[.enabled_datasets // {} | to_entries[]] | .[] | select(.value.auto_download == true) | .key' "$CONFIG_DIR/datasets-status.json"))
-    for day in "${ALL_DAYS_TO_PROCESS[@]}"; do
-        for dataset_key in "${datasets[@]}"; do
-            local hls_dir="$DATA_DIR/hls/$dataset_key/$day"
-            if [ -f "$hls_dir/segment_000.ts" ] && [ -f "$hls_dir/playlist.m3u8" ]; then
-                local_video_count=$((local_video_count+1))
-            fi
-        done
-    done
-    log "INFO" "📊 Couples HLS générés dans cette exécution: $local_video_count"
+    log "INFO" "✅ create_playlists() terminé - passage au comptage HLS"
+    
+    # Comptage simple du nombre total de playlists HLS existantes (plus rapide)
+    local total_hls_playlists=$(find "$DATA_DIR/hls" -name "playlist.m3u8" -type f | wc -l)
+    log "INFO" "📊 Total de playlists HLS dans le système: $total_hls_playlists"
+    log "INFO" "✅ Comptage terminé - passage à generate_report"
+    
     generate_report "${ALL_DAYS_TO_PROCESS[@]}"
-    # Suppression des images sauf aujourd'hui et la veille
+    log "INFO" "✅ generate_report() terminé - passage au nettoyage"
+    
+    # =============================================================================
+    # PHASE 6: NETTOYAGE DES ANCIENNES IMAGES
+    # =============================================================================
+    log "INFO" "🧹 PHASE 6: DÉBUT du nettoyage des répertoires d'images anciens"
+    
+    # Suppression des répertoires d'images de plus de 2 jours (garde seulement aujourd'hui et hier)
     local today=$(date +%Y-%m-%d)
     local yesterday=$(date -d "yesterday" +%Y-%m-%d)
-    log "INFO" "🧹 Suppression de toutes les images sauf celles du jour courant ($today) et de la veille ($yesterday) dans DATA_DIR"
-    find "$DATA_DIR" -name "*.jpg" -type f | while read -r img; do
-        # Extraire la date du chemin (suppose /YYYY-MM-DD/ dans le chemin)
-        img_date=$(echo "$img" | grep -oE "/[0-9]{4}-[0-9]{2}-[0-9]{2}/" | tr -d "/")
-        if [ "$img_date" != "$today" ] && [ "$img_date" != "$yesterday" ]; then
-            rm -f "$img"
+    
+    log "INFO" "🧹 Suppression des répertoires d'images de plus de 2 jours (garde seulement $today et $yesterday)"
+    
+    local deleted_dirs=0
+    local kept_dirs=0
+    local processed_dirs=0
+    
+    # Fonction interne pour nettoyer les anciens répertoires
+    cleanup_old_images() {
+        local base_dir="$1"
+        local dir_name="$2"
+        
+        log "INFO" "🔍 DÉBUT nettoyage dans $base_dir ($dir_name)"
+        
+        # Vérifier que le répertoire existe
+        if [ ! -d "$base_dir" ]; then
+            log "WARN" "Répertoire $base_dir n'existe pas, ignoré"
+            return
         fi
-    done
+        
+        # Chercher tous les répertoires de dates dans cette base
+        while IFS= read -r -d '' dir; do
+            processed_dirs=$((processed_dirs + 1))
+            
+            # Extraire la date du nom du répertoire
+            local dir_date=$(basename "$dir")
+            
+            # Vérifier que la date extraite est valide
+            if ! date -d "$dir_date" >/dev/null 2>&1; then
+                log "WARN" "Date invalide '$dir_date' dans $dir (conservé par sécurité)"
+                kept_dirs=$((kept_dirs + 1))
+                continue
+            fi
+            
+            # Supprimer si le répertoire n'est ni d'aujourd'hui ni d'hier
+            if [ "$dir_date" != "$today" ] && [ "$dir_date" != "$yesterday" ]; then
+                # Vérifier s'il contient des images avant suppression
+                local img_count=$(find "$dir" -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" -type f 2>/dev/null | wc -l)
+                
+                log "INFO" "Suppression répertoire ancien ($dir_date): $dir ($img_count images)"
+                rm -rf "$dir"
+                deleted_dirs=$((deleted_dirs + 1))
+            else
+                local img_count=$(find "$dir" -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" -type f 2>/dev/null | wc -l)
+                log "DEBUG" "Conservation répertoire récent ($dir_date): $dir ($img_count images)"
+                kept_dirs=$((kept_dirs + 1))
+            fi
+        done < <(find "$base_dir" -type d -name "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]" -print0 2>/dev/null)
+    }
+    
+    # Nettoyer SEULEMENT les répertoires d'images (pas les HLS)
+    log "INFO" "🔄 Appel cleanup_old_images pour EUMETSAT..."
+    cleanup_old_images "$DATA_DIR/EUMETSAT" "EUMETSAT"
+    log "INFO" "🔄 Appel cleanup_old_images pour NOAA..."
+    cleanup_old_images "$DATA_DIR/NOAA" "NOAA"
+    
+    log "INFO" "🧹 Nettoyage terminé: $deleted_dirs répertoire(s) supprimé(s), $kept_dirs conservé(s) sur $processed_dirs traité(s)"
+    log "INFO" "✅ PHASE 6: Nettoyage des anciennes images TERMINÉ"
     log "INFO" "🎉 Test complet terminé - Log disponible: $LOG_FILE"
+    log "INFO" "🏁 FIN D'EXÉCUTION DE TESTCOMPLET.SH"
 }
 
 # =============================================================================

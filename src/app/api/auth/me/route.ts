@@ -30,7 +30,7 @@ export async function GET() {
           permissions: decoded.permissions
         }
       });
-    } catch (jwtError) {
+    } catch {
       // Token invalide
       cookieStore.delete('auth-token');
       return NextResponse.json({ authenticated: false });

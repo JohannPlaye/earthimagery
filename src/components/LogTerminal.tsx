@@ -28,25 +28,8 @@ export default function LogTerminal() {
   const terminalRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Vérification des permissions
-  if (!hasPermission('dataset_manage')) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <div className="text-6xl mb-4">🔒</div>
-          <h3 className="text-lg font-semibold text-purple-300 mb-2">
-            Accès restreint
-          </h3>
-          <p className="text-gray-400">
-            Seuls les administrateurs peuvent accéder aux logs.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   // Fonction pour parser une ligne de log
-  const parseLogLine = (line: string): LogEntry | null => {
+  const parseLogLine = React.useCallback((line: string): LogEntry | null => {
     if (!line.trim()) return null;
     
     // Essayer de détecter différents formats de logs
@@ -62,10 +45,10 @@ export default function LogTerminal() {
       message: line.replace(timestampRegex, '').replace(levelRegex, '').trim(),
       raw: line
     };
-  };
+  }, []);
 
   // Fonction pour charger les fichiers de logs disponibles
-  const loadAvailableLogFiles = async (date: string) => {
+  const loadAvailableLogFiles = React.useCallback(async (date: string) => {
     try {
       const response = await fetch(`/api/logs/files?date=${date}`);
       if (response.ok) {
@@ -80,10 +63,10 @@ export default function LogTerminal() {
     } catch (error) {
       console.error('Erreur lors du chargement des fichiers de logs:', error);
     }
-  };
+  }, [isRealTime]);
 
   // Fonction pour charger le contenu d'un log
-  const loadLogContent = async (filename: string, isStreaming = false) => {
+  const loadLogContent = React.useCallback(async (filename: string, isStreaming = false) => {
     try {
       setIsLoading(true);
       setError('');
@@ -119,7 +102,7 @@ export default function LogTerminal() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [parseLogLine]);
 
   // Auto-scroll vers le bas
   useEffect(() => {
@@ -131,7 +114,7 @@ export default function LogTerminal() {
   // Charger les fichiers disponibles quand la date change
   useEffect(() => {
     loadAvailableLogFiles(selectedDate);
-  }, [selectedDate]);
+  }, [selectedDate, loadAvailableLogFiles]);
 
   // Gestion du mode temps réel
   useEffect(() => {
@@ -152,14 +135,31 @@ export default function LogTerminal() {
     } else if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
-  }, [isRealTime, selectedLogFile]);
+  }, [isRealTime, selectedLogFile, loadLogContent]);
 
   // Charger le log sélectionné quand il change (mode manuel)
   useEffect(() => {
     if (!isRealTime && selectedLogFile) {
       loadLogContent(selectedLogFile, false);
     }
-  }, [selectedLogFile, isRealTime]);
+  }, [selectedLogFile, isRealTime, loadLogContent]);
+
+  // Vérification des permissions
+  if (!hasPermission('dataset_manage')) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="text-6xl mb-4">🔒</div>
+          <h3 className="text-lg font-semibold text-purple-300 mb-2">
+            Accès restreint
+          </h3>
+          <p className="text-gray-400">
+            Seuls les administrateurs peuvent accéder aux logs.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Fonction pour obtenir la couleur selon le niveau de log
   const getLogLevelColor = (level: string) => {

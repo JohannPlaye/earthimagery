@@ -27,7 +27,7 @@ const VALIDATION_SCRIPT = path.join(process.cwd(), 'scripts', 'validate-datasets
 export async function POST(request: NextRequest) {
   try {
     // Vérification de l'authentification
-    const user = await getAuthenticatedUser(request);
+    const user = await getAuthenticatedUser();
     if (!user || !hasPermission(user, 'dataset_manage')) {
       return NextResponse.json(
         { success: false, error: 'Accès non autorisé' },

@@ -2,6 +2,19 @@
 
 import { useEffect, useRef, useState, useMemo } from 'react';
 
+// Types pour hls.js
+interface HlsInstance {
+  loadSource: (src: string) => void;
+  attachMedia: (media: HTMLVideoElement) => void;
+  destroy: () => void;
+  startLoad: () => void;
+  bufferController?: {
+    flushBuffer: (start: number, end: number, type: string) => void;
+  };
+  on: (event: string, callback: (...args: unknown[]) => void) => void;
+  off: (event: string, callback: (...args: unknown[]) => void) => void;
+}
+
 interface SatelliteDataset {
   key: string;
   satellite: string;
@@ -30,8 +43,6 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const [loadingProgress, setLoadingProgress] = useState(0);
-  const [loadingStage, setLoadingStage] = useState('Initialisation...');
   const [segmentsLoaded, setSegmentsLoaded] = useState(0);
   const [segmentsTotal, setSegmentsTotal] = useState(0);
 
@@ -91,8 +102,6 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
     // Try native HLS first (Safari, iOS)
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       console.log('🍎 Using native HLS support');
-      setLoadingStage('Connexion au serveur...');
-      setLoadingProgress(25);
       
       // Add error handlers for native HLS
       const handleNativeError = (e: Event) => {
@@ -103,8 +112,6 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
       
       const handleNativeLoad = () => {
         console.log('✅ Native HLS loaded');
-        setLoadingStage('Chargement terminé');
-        setLoadingProgress(100);
         setIsLoading(false);
       };
       
@@ -129,8 +136,6 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
         
         if (Hls.isSupported()) {
           console.log('📱 Using HLS.js for:', playlistUrl);
-          setLoadingStage('Chargement du lecteur...');
-          setLoadingProgress(10);
           
           // Cleanup previous instance
           if (hlsRef.current) {
@@ -192,7 +197,7 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
                     currentTime: currentTime.toFixed(1)
                   });
                   
-                  const hlsInstance = hlsRef.current as any;
+                  const hlsInstance = hlsRef.current as HlsInstance;
                   if (hlsInstance.bufferController && hlsInstance.bufferController.flushBuffer) {
                     hlsInstance.bufferController.flushBuffer(start, end, 'video');
                   }
@@ -206,7 +211,7 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
                       currentTime: currentTime.toFixed(1)
                     });
                     
-                    const hlsInstance = hlsRef.current as any;
+                    const hlsInstance = hlsRef.current as HlsInstance;
                     if (hlsInstance.bufferController && hlsInstance.bufferController.flushBuffer) {
                       hlsInstance.bufferController.flushBuffer(start, purgeEnd, 'video');
                     }
@@ -247,8 +252,6 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
             
             setSegmentsTotal(total);
             setSegmentsLoaded(0);
-            setLoadingStage('Chargement des segments...');
-            setLoadingProgress(0);
             
             // Appliquer la vitesse de lecture après parsing
             if (video) video.playbackRate = playbackRate;
@@ -261,8 +264,6 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
               fragments: eventData.details?.fragments?.length || 0,
               duration: eventData.details?.totalduration || 0
             });
-            setLoadingStage('Chargement des segments...');
-            setLoadingProgress(85);
           });
 
           hls.on(Hls.Events.FRAG_LOADED, (event: string, data: unknown) => {
@@ -322,7 +323,7 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
               // Forcer une relance
               try {
                 if (hlsRef.current) {
-                  (hlsRef.current as any).startLoad();
+                  (hlsRef.current as HlsInstance).startLoad();
                 }
               } catch (err) {
                 console.warn('Erreur lors de la relance:', err);
@@ -342,8 +343,6 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
               
               // Marquer comme prêt
               setIsLoading(false);
-              setLoadingProgress(100);
-              setLoadingStage('Vidéo prête !');
               
               // Lancer la vidéo
               if (videoRef.current) {
@@ -355,11 +354,6 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
               lastFragmentTime = Date.now(); // Reset pour éviter répétition
             }
           }, 5000);
-
-          // Nettoyer l'intervalle lors du cleanup
-          const originalCleanup = () => {
-            clearInterval(checkStalling);
-          };
 
           hls.on(Hls.Events.ERROR, (event: string, data: unknown) => {
             const eventData = data as { type?: string; details?: string; fatal?: boolean; url?: string };
@@ -387,7 +381,7 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
               setTimeout(() => {
                 if (hlsRef.current && segmentsLoaded < targetSegments) {
                   console.log('🔄 Relance chargement après purge');
-                  (hlsRef.current as any).startLoad();
+                  (hlsRef.current as HlsInstance).startLoad();
                 }
               }, 1000); // 1 seconde de pause
               
@@ -484,12 +478,13 @@ export default function VideoPlayer({ fromDate, toDate, selectedDataset, classNa
           video.addEventListener('timeupdate', () => {
             if (video.currentTime > 0) {
               const now = Date.now();
-              const lastPurge = (video as any).lastPurgeTime || 0;
+              const videoWithCache = video as HTMLVideoElement & { lastPurgeTime?: number };
+              const lastPurge = videoWithCache.lastPurgeTime || 0;
               
               // Purger toutes les 10 secondes pendant la lecture
               if (now - lastPurge > 10000) {
                 purgeOldSegments();
-                (video as any).lastPurgeTime = now;
+                videoWithCache.lastPurgeTime = now;
               }
             }
           });

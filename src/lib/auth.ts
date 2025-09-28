@@ -46,7 +46,8 @@ export async function validateUser(username: string, password: string): Promise<
 
     if (isValidPassword) {
       // Retourner l'utilisateur sans le mot de passe
-      const { password: _, ...userWithoutPassword } = user;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { password: _pass, ...userWithoutPassword } = user;
       return userWithoutPassword as User;
     }
 

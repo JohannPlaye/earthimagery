@@ -1,4 +1,3 @@
-import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
 
@@ -11,7 +10,7 @@ export interface AuthenticatedUser {
   permissions: string[];
 }
 
-export async function getAuthenticatedUser(request: NextRequest): Promise<AuthenticatedUser | null> {
+export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get('auth-token')?.value;

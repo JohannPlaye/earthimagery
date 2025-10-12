@@ -1,4 +1,3 @@
-    local datasets=($(jq -r '[.enabled_datasets // {} | to_entries[]] | .[] | select(.value.auto_download == true) | .key' "$CONFIG_DIR/datasets-status.json"))
 #!/bin/bash
 
 # =============================================================================

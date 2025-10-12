@@ -327,6 +327,7 @@ Le déploiement configure automatiquement :
 - `📁 scripts/` - Scripts de traitement vidéo
 - `📄 package.json` - Configuration npm
 - `📄 next.config.ts` - Configuration Next.js
+- `📄 .env.local` - Variables d'environnement
 - `📄 pm2.config.json` - Configuration PM2
 - `📄 pm2-manager.sh` - Gestionnaire PM2
 

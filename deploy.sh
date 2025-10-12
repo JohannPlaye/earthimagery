@@ -146,6 +146,7 @@ show_deployment_info() {
     echo "   📄 package.json"
     echo "   📄 next.config.ts"
     echo "   📄 package-lock.json"
+    echo "   📄 .env.local"
     echo ""
 }
 
@@ -241,7 +242,7 @@ deploy_files() {
     
     # Copie des fichiers de configuration avec scp (plus fiable pour les petits fichiers)
     log "INFO" "📄 Copie des fichiers de configuration..."
-    if sshpass -e scp -P $SERVER_PORT package.json package-lock.json next.config.ts pm2.config.json pm2-manager.sh $SERVER_USER@$SERVER_HOST:$SERVER_PATH/; then
+    if sshpass -e scp -P $SERVER_PORT package.json package-lock.json next.config.ts pm2.config.json pm2-manager.sh .env.local $SERVER_USER@$SERVER_HOST:$SERVER_PATH/; then
         log "INFO" "✅ Fichiers de configuration copiés"
         
         # Rendre pm2-manager.sh exécutable
@@ -306,6 +307,7 @@ verify_deployment() {
         [ -d 'scripts' ] && echo '✅ scripts/ présent' || echo '❌ scripts/ manquant'
         [ -f 'package.json' ] && echo '✅ package.json présent' || echo '❌ package.json manquant'
         [ -f 'next.config.ts' ] && echo '✅ next.config.ts présent' || echo '❌ next.config.ts manquant'
+        [ -f '.env.local' ] && echo '✅ .env.local présent' || echo '❌ .env.local manquant'
         echo ''
         echo '🆔 Build ID:'
         cat .next/BUILD_ID 2>/dev/null || echo 'BUILD_ID non trouvé'

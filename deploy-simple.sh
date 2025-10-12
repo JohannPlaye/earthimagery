@@ -189,6 +189,7 @@ deploy_step "pm2.config.json" "Configuration PM2" false
 deploy_step "pm2-manager.sh" "Script de gestion PM2" false
 deploy_step "next.config.ts" "Configuration Next.js" false
 deploy_step "package-lock.json" "Lock file" false
+deploy_step ".env.local" "Variables d'environnement" false
 
 deploy_step "config" "Configuration de l'application" true
 deploy_step "public" "Assets statiques" true
@@ -258,6 +259,7 @@ sshpass -e ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "
     [ -f 'package.json' ] && echo '✅ package.json' || echo '❌ package.json'
     [ -d '.next' ] && echo '✅ .next/' || echo '❌ .next/'
     [ -d 'node_modules' ] && echo '✅ node_modules/' || echo '❌ node_modules/'
+    [ -f '.env.local' ] && echo '✅ .env.local' || echo '❌ .env.local'
     [ -d 'config' ] && echo '✅ config/' || echo '❌ config/'
     [ -d 'public' ] && echo '✅ public/' || echo '❌ public/'
     [ -d 'scripts' ] && echo '✅ scripts/' || echo '❌ scripts/'

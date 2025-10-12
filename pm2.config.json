@@ -1,0 +1,24 @@
+{
+  "name": "earthimagery",
+  "script": "npm",
+  "args": "start",
+  "cwd": "/home/johann/developpement/earthimagery",
+  "instances": 1,
+  "exec_mode": "fork",
+  "watch": false,
+  "max_memory_restart": "1G",
+  "env": {
+    "NODE_ENV": "production",
+    "PORT": "11000",
+    "HOSTNAME": "0.0.0.0"
+  },
+  "log_file": "/home/johann/developpement/earthimagery/logs/pm2.log",
+  "out_file": "/home/johann/developpement/earthimagery/logs/pm2-out.log",
+  "error_file": "/home/johann/developpement/earthimagery/logs/pm2-error.log",
+  "log_date_format": "YYYY-MM-DD HH:mm:ss Z",
+  "merge_logs": true,
+  "autorestart": true,
+  "max_restarts": 10,
+  "min_uptime": "10s",
+  "restart_delay": 4000
+}

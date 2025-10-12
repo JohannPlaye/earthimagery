@@ -216,6 +216,282 @@ Variables disponibles dans les URLs :
 
 ## 🚀 Déploiement
 
+### Configuration du Serveur de Production
+
+#### Prérequis Serveur
+- Ubuntu/Debian avec accès SSH
+- Node.js installé via nvm (recommandé)
+- PM2 pour la gestion des processus
+- Port ouvert pour l'application
+
+#### Installation Node.js via nvm
+```bash
+# Sur le serveur de production
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+source ~/.bashrc
+nvm install --lts
+nvm use --lts
+npm install -g pm2
+```
+
+### Scripts de Déploiement Automatisés
+
+Le projet inclut deux scripts de déploiement automatisés :
+
+#### `./deploy.sh` - Déploiement Principal
+Script complet avec vérifications et gestion d'erreurs avancée.
+
+**Usage :**
+```bash
+# Déploiement rapide (défaut)
+./deploy.sh
+
+# Déploiement avec nettoyage complet des dépendances
+./deploy.sh --clean
+
+# Afficher l'aide
+./deploy.sh --help
+```
+
+**Fonctionnalités :**
+- ✅ Vérifications préalables (build, node_modules, SSH)
+- ✅ Authentification SSH unique avec sshpass
+- ✅ Arrêt automatique de l'application en cours
+- ✅ Transfert rsync optimisé avec gestion d'erreurs
+- ✅ Installation automatique des dépendances
+- ✅ Support nvm sur le serveur distant
+- ✅ Vérification post-déploiement
+- ✅ Redémarrage automatique de l'application
+- ✅ Affichage du statut final
+
+#### `./deploy-simple.sh` - Déploiement Diagnostique
+Version simplifiée pour diagnostiquer les problèmes de déploiement.
+
+**Usage :**
+```bash
+# Déploiement avec logs détaillés (défaut)
+./deploy-simple.sh
+
+# Déploiement avec nettoyage complet
+./deploy-simple.sh --clean
+
+# Afficher l'aide
+./deploy-simple.sh --help
+```
+
+**Fonctionnalités :**
+- ✅ Logs détaillés étape par étape
+- ✅ Arrêt automatique de l'application en cours
+- ✅ Diagnostic des erreurs rsync
+- ✅ Vérification de l'espace disque
+- ✅ Transfert par composants séparés
+- ✅ Redémarrage automatique de l'application
+- ✅ Mode verbeux pour le debugging
+
+### Options de Déploiement
+
+#### Mode Rapide (Défaut)
+```bash
+./deploy.sh
+```
+- Utilise rsync pour transférer les fichiers existants
+- Conserve node_modules pour un déploiement rapide
+- Exécute `npm install --production` pour mettre à jour
+
+#### Mode Nettoyage Complet
+```bash
+./deploy.sh --clean
+```
+- Supprime complètement `node_modules` et `package-lock.json`
+- Réinstalle toutes les dépendances depuis zéro
+- Plus lent mais évite les corruptions de dépendances
+- **Recommandé en cas de problèmes de démarrage**
+
+### Configuration du Serveur
+
+#### Variables d'Environnement Serveur
+Le déploiement configure automatiquement :
+```json
+{
+  "NODE_ENV": "production",
+  "PORT": "11000",
+  "HOSTNAME": "0.0.0.0"
+}
+```
+
+#### Fichiers Déployés
+- `📁 .next/` - Build Next.js optimisé
+- `📁 node_modules/` - Dépendances de production  
+- `📁 config/` - Configuration de l'application (datasets, utilisateurs)
+- `📁 public/` - Assets statiques (exclut `data/`)
+- `📁 scripts/` - Scripts de traitement vidéo
+- `📄 package.json` - Configuration npm
+- `📄 next.config.ts` - Configuration Next.js
+- `📄 pm2.config.json` - Configuration PM2
+- `📄 pm2-manager.sh` - Gestionnaire PM2
+
+#### Exclusions de Déploiement
+- `data/` - Préserve les données satellitaires existantes
+- `*.log` - Évite les fichiers de logs locaux
+- `.cache` - Exclut les caches temporaires
+
+### Gestion PM2 en Production
+
+#### Script de Gestion PM2
+Utilisez `pm2-manager.sh` sur le serveur pour gérer l'application :
+
+```bash
+# Démarrer l'application
+./pm2-manager.sh start
+
+# Vérifier le statut
+./pm2-manager.sh status
+
+# Voir les logs en temps réel
+./pm2-manager.sh logs
+
+# Redémarrer l'application
+./pm2-manager.sh restart
+
+# Recharger sans downtime
+./pm2-manager.sh reload
+
+# Arrêter l'application
+./pm2-manager.sh stop
+
+# Monitoring en temps réel
+./pm2-manager.sh monitor
+
+# Lister tous les processus PM2
+./pm2-manager.sh list
+
+# Supprimer de PM2
+./pm2-manager.sh delete
+```
+
+#### Configuration PM2
+```json
+{
+  "name": "earthimagery",
+  "script": "npm",
+  "args": "start",
+  "instances": 1,
+  "exec_mode": "fork",
+  "env": {
+    "NODE_ENV": "production",
+    "PORT": "11000",
+    "HOSTNAME": "0.0.0.0"
+  },
+  "autorestart": true,
+  "max_restarts": 10,
+  "min_uptime": "10s",
+  "max_memory_restart": "1G"
+}
+```
+
+### Processus de Déploiement Complet
+
+#### 1. Préparation Locale
+```bash
+# Build de l'application
+npm run build
+
+# Vérification du build
+ls -la .next/
+```
+
+#### 2. Déploiement
+```bash
+# Déploiement standard
+./deploy.sh
+
+# Ou en cas de problème
+./deploy.sh --clean
+```
+**Le script va automatiquement :**
+- Arrêter l'application en cours (si elle tourne)
+- Transférer tous les fichiers mis à jour
+- Installer/mettre à jour les dépendances
+- Redémarrer l'application avec PM2
+- Afficher le statut final
+
+#### 3. Vérification du Déploiement
+L'application se redémarre automatiquement après le déploiement. Pour vérifier manuellement :
+
+```bash
+# Connexion SSH (optionnel, déjà fait automatiquement)
+ssh -p 2221 johann@88.174.193.236
+
+# Navigation vers le projet (optionnel)
+cd developpement/earthimagery
+
+# Vérification du statut (déjà affiché automatiquement)
+./pm2-manager.sh status
+```
+
+#### 4. Accès à l'Application
+L'application sera accessible sur :
+- **URL** : `http://88.174.193.236:11000`
+- **Logs** : `./pm2-manager.sh logs`
+- **Monitoring** : `./pm2-manager.sh monitor`
+
+### Résolution de Problèmes
+
+#### Problèmes de Dépendances
+```bash
+# Si l'application crash au démarrage
+./deploy.sh --clean  # Force la réinstallation
+
+# Ou manuellement sur le serveur
+rm -rf node_modules package-lock.json
+npm install --production
+./pm2-manager.sh restart
+```
+
+#### Problèmes de Connexion
+```bash
+# Vérifier les ports ouverts
+netstat -tlnp | grep 11000
+
+# Vérifier le firewall
+sudo ufw status
+
+# Ouvrir le port si nécessaire
+sudo ufw allow 11000
+```
+
+#### Logs de Débogage
+```bash
+# Logs PM2 détaillés
+./pm2-manager.sh logs
+
+# Fichiers de logs
+cat logs/pm2-error.log
+cat logs/pm2-out.log
+cat logs/pm2.log
+```
+
+### Scripts de Maintenance
+
+#### Nettoyage Automatique
+```bash
+# Script de nettoyage des anciens logs
+find logs/ -name "*.log" -mtime +30 -delete
+
+# Nettoyage des données anciennes (si configuré)
+./scripts/cleanup-old-data.sh
+```
+
+#### Sauvegarde
+```bash
+# Sauvegarde de la configuration
+tar -czf earthimagery-config-$(date +%Y%m%d).tar.gz \
+    pm2.config.json package.json next.config.ts
+
+# Sauvegarde des données (si besoin)
+rsync -av public/data/ backup/data-$(date +%Y%m%d)/
+```
+
 ### Raspberry Pi (Production)
 
 1. **Préparer l'environnement**

@@ -17,6 +17,25 @@ VIDEO_CRF=19
 VIDEO_PRESET="medium"
 HLS_SEGMENT_TIME=10
 
+# Détection matérielle et optimisations
+RASPBERRY_PI_DETECTED=
+RASPBERRY_PI_MODEL=
+detect_raspberry_pi() {
+    if [ -f /proc/cpuinfo ] && grep -q "BCM283[0-9]" /proc/cpuinfo; then
+        if [ -z "$RASPBERRY_PI_DETECTED" ]; then
+            RASPBERRY_PI_DETECTED=1
+            RASPBERRY_PI_MODEL=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || echo "Raspberry Pi")
+            log "🍓 Exécution sur $RASPBERRY_PI_MODEL - Optimisations matérielles activées"
+        fi
+        return 0
+    fi
+    if [ -z "$RASPBERRY_PI_DETECTED" ]; then
+        RASPBERRY_PI_DETECTED=0
+        log "💻 Exécution sur système standard - Pas d'optimisations spécifiques"
+    fi
+    return 1
+}
+
 # Paramètres d'entrée
 DATASET_KEY="$1"
 TARGET_DATE="$2"
@@ -188,12 +207,10 @@ generate_video_for_dataset() {
     local video_preset="medium"
     local video_crf="$VIDEO_CRF"  # Maintenir la qualité originale
     
-    # Détection Raspberry Pi pour optimisations PERFORMANCE UNIQUEMENT (pas de qualité)
-    local is_raspberry_pi=false
-    if [ -f /proc/cpuinfo ] && grep -q "BCM283[0-9]" /proc/cpuinfo; then
-        is_raspberry_pi=true
-        log "🍓 Raspberry Pi détecté: optimisations performance (qualité préservée)"
-    fi
+    # Détection matérielle et optimisations
+    detect_raspberry_pi
+    local is_raspberry_pi=$?
+    [ $is_raspberry_pi -eq 0 ] && is_raspberry_pi=true || is_raspberry_pi=false
     
     if [ "$is_raspberry_pi" = true ]; then
         # Optimisations Raspberry Pi 3B+ : SEULEMENT threads et preset (qualité identique)
@@ -254,8 +271,39 @@ generate_video_for_dataset() {
         local final_height=$(echo "$target_resolution" | cut -d'x' -f2)
         
         if [ "$crop_width" -gt 0 ] && [ "$crop_height" -gt 0 ] && [ "$final_width" -gt 0 ] && [ "$final_height" -gt 0 ]; then
-            video_filters="crop=${crop_width}:${crop_height}:${x1}:${y1},scale=${final_width}:${final_height},pad=ceil(iw/2)*2:ceil(ih/2)*2"
-            log "🎯 Filtres vidéo virtuels: crop(${crop_width}x${crop_height} @ ${x1},${y1}) → scale(${final_width}x${final_height})"
+            # Calculer une résolution intermédiaire optimisée pour le Raspberry Pi
+            # Garantit au moins 1.5x la résolution finale dans chaque dimension
+            if is_raspberry_pi && [ "$crop_width" -gt $((final_width * 3)) ]; then
+                # Calcul d'une taille intermédiaire qui préserve le ratio pixels/qualité
+                local intermediate_width=$((final_width * 2))
+                local intermediate_height=$(awk "BEGIN {printf \"%.0f\", $intermediate_width * ($crop_height / $crop_width)}")
+                
+            # Construction des filtres avec scaling haute qualité
+            local scale_flags="flags=lanczos+accurate_rnd+full_chroma_int+full_chroma_inp"
+            video_filters="crop=${crop_width}:${crop_height}:${x1}:${y1},scale=${intermediate_width}:${intermediate_height}:${scale_flags},scale=${final_width}:${final_height}:${scale_flags},pad=ceil(iw/2)*2:ceil(ih/2)*2"
+                
+            # Logs détaillés du pipeline de traitement
+            log "🍓 Pipeline de traitement Raspberry Pi optimisé:"
+            log "   1️⃣ Crop: ${crop_width}x${crop_height} @ (${x1},${y1})"
+            log "   2️⃣ Scale intermédiaire: ${intermediate_width}x${intermediate_height}"
+            log "   3️⃣ Scale final: ${final_width}x${final_height}"
+            log "   🔍 Algorithme: Lanczos (haute qualité) avec optimisations chroma"
+            else
+                # Configuration standard
+                # Configuration standard avec scaling haute qualité
+                local scale_flags="flags=lanczos+accurate_rnd+full_chroma_int+full_chroma_inp"
+                video_filters="crop=${crop_width}:${crop_height}:${x1}:${y1},scale=${final_width}:${final_height}:${scale_flags},pad=ceil(iw/2)*2:ceil(ih/2)*2"
+                
+                # Logs standards
+                if $is_raspberry_pi; then
+                    log "� Pipeline de traitement Raspberry Pi (direct):"
+                else
+                    log "💻 Pipeline de traitement standard:"
+                fi
+                log "   1️⃣ Crop: ${crop_width}x${crop_height} @ (${x1},${y1})"
+                log "   2️⃣ Scale: ${final_width}x${final_height}"
+                log "   🔍 Algorithme: Lanczos (haute qualité) avec optimisations chroma"
+            fi
         else
             log "⚠️ Paramètres de crop invalides, utilisation des filtres standard"
         fi

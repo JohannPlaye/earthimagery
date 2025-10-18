@@ -30,64 +30,6 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # =============================================================================
-# FONCTIONS DE MONITORING RASPBERRY PI
-# =============================================================================
-
-# Détection Raspberry Pi
-is_raspberry_pi() {
-    [ -f /proc/cpuinfo ] && grep -q "BCM283[0-9]" /proc/cpuinfo
-}
-
-# Surveillance de la température
-check_temperature() {
-    if is_raspberry_pi && [ -f /sys/class/thermal/thermal_zone0/temp ]; then
-        local temp_millicelsius=$(cat /sys/class/thermal/thermal_zone0/temp)
-        local temp_celsius=$((temp_millicelsius / 1000))
-        echo "$temp_celsius"
-    else
-        echo "0"  # Température inconnue sur systèmes non-RPi
-    fi
-}
-
-# Pause de refroidissement intelligente
-cooling_pause() {
-    if ! is_raspberry_pi; then
-        return 0  # Pas de pause nécessaire sur les autres systèmes
-    fi
-    
-    local current_temp=$(check_temperature)
-    local max_temp=70
-    local warning_temp=65
-    
-    if [ "$current_temp" -ge "$max_temp" ]; then
-        log "WARN" "🌡️ Température critique: ${current_temp}°C - Pause de refroidissement de 60s"
-        sleep 60
-        
-        # Vérifier à nouveau après la pause
-        current_temp=$(check_temperature)
-        if [ "$current_temp" -ge "$max_temp" ]; then
-            log "ERROR" "🚨 Température toujours critique: ${current_temp}°C - Arrêt pour protection"
-            exit 1
-        fi
-    elif [ "$current_temp" -ge "$warning_temp" ]; then
-        log "WARN" "🌡️ Température élevée: ${current_temp}°C - Pause de 30s"
-        sleep 30
-    fi
-    
-    log "INFO" "🌡️ Température: ${current_temp}°C"
-}
-
-# Surveillance mémoire
-check_memory() {
-    if is_raspberry_pi; then
-        local available_mb=$(free -m | awk 'NR==2{printf "%.0f", $7}')
-        echo "$available_mb"
-    else
-        echo "1000"  # Valeur par défaut pour les autres systèmes
-    fi
-}
-
-# =============================================================================
 # FONCTIONS UTILITAIRES
 # =============================================================================
 
@@ -352,14 +294,6 @@ generate_daily_videos() {
         return 0
     fi
     
-    # Vérification Raspberry Pi et affichage des spécifications
-    if is_raspberry_pi; then
-        local temp=$(check_temperature)
-        local mem=$(check_memory)
-        log "INFO" "🍓 Raspberry Pi détecté - Température: ${temp}°C, Mémoire disponible: ${mem}MB"
-        log "INFO" "🍓 Mode optimisation activé: pauses de refroidissement entre les générations vidéo"
-    fi
-    
     # Récupérer la liste des datasets avec génération vidéo activée (incluant les datasets virtuels)
     local datasets=($(jq -r '[.enabled_datasets // {} | to_entries[]] | .[] | select((.value.auto_download == true or .value.virtual_dataset == true) and (.value.video_generation != false)) | .key' "$CONFIG_DIR/datasets-status.json"))
     
@@ -379,9 +313,6 @@ generate_daily_videos() {
         log "INFO" "🎬 $dataset_key: ${#days_array[@]} jour(s) à traiter"
         
         for day in "${days_array[@]}"; do
-            # Pause de refroidissement avant chaque génération vidéo (Raspberry Pi uniquement)
-            cooling_pause
-            
             # Vérifier si c'est un dataset virtuel
             local virtual_info=$(jq -r --arg key "$dataset_key" '
                 .enabled_datasets[$key] | 
@@ -431,18 +362,7 @@ generate_daily_videos() {
             else
                 log "WARN" "    ❌ Échec génération vidéo pour $dataset_key le $day"
             fi
-            
-            # Pause courte après génération vidéo pour éviter la saturation (Raspberry Pi uniquement)
-            if is_raspberry_pi; then
-                sleep 5
-            fi
         done
-        
-        # Pause plus longue entre les datasets (Raspberry Pi uniquement)
-        if is_raspberry_pi && [ "${#days_array[@]}" -gt 0 ]; then
-            log "INFO" "🍓 Pause de refroidissement entre datasets (10s)"
-            sleep 10
-        fi
     done
     
     # Comptage final optimisé
@@ -457,13 +377,6 @@ generate_daily_videos() {
         fi
     done
     log "INFO" "📊 Vidéos générées (couples ts/m3u8): $video_count"
-    
-    # Vérification finale de la température (Raspberry Pi uniquement)
-    if is_raspberry_pi; then
-        local final_temp=$(check_temperature)
-        log "INFO" "🍓 Température finale: ${final_temp}°C"
-    fi
-    
     log "INFO" "✅ Phase de génération vidéo terminée"
 }
 

@@ -17,6 +17,31 @@ VIDEO_CRF=19
 VIDEO_PRESET="medium"
 HLS_SEGMENT_TIME=10
 
+# Détection matérielle et optimisations
+RASPBERRY_PI_DETECTED=
+RASPBERRY_PI_MODEL=
+detect_raspberry_pi() {
+    # Méthodes multiples de détection Raspberry Pi
+    if [ -f /proc/cpuinfo ] && (grep -q "BCM283[0-9]" /proc/cpuinfo || grep -q "Raspberry Pi" /proc/cpuinfo); then
+        if [ -z "$RASPBERRY_PI_DETECTED" ]; then
+            RASPBERRY_PI_DETECTED=1
+            # Essayer différentes méthodes pour obtenir le modèle
+            if [ -f /proc/device-tree/model ]; then
+                RASPBERRY_PI_MODEL=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || echo "Raspberry Pi")
+            else
+                RASPBERRY_PI_MODEL=$(grep "Model" /proc/cpuinfo | cut -d':' -f2 | sed 's/^ *//' || echo "Raspberry Pi")
+            fi
+            log "🍓 Exécution sur $RASPBERRY_PI_MODEL - Optimisations matérielles activées"
+        fi
+        return 0
+    fi
+    if [ -z "$RASPBERRY_PI_DETECTED" ]; then
+        RASPBERRY_PI_DETECTED=0
+        log "💻 Exécution sur système standard - Pas d'optimisations spécifiques"
+    fi
+    return 1
+}
+
 # Paramètres d'entrée
 DATASET_KEY="$1"
 TARGET_DATE="$2"
@@ -182,21 +207,48 @@ generate_video_for_dataset() {
     log "🎞️ Première image: $(basename "$first_image")"
     log "🎞️ Dernière image: $(basename "$last_image")"
 
+    # Détection matérielle et optimisations
+    detect_raspberry_pi
+    local is_raspberry_pi=$?
+    [ $is_raspberry_pi -eq 0 ] && is_raspberry_pi=true || is_raspberry_pi=false
+    
     # Détection automatique de la résolution pour adapter les paramètres FFmpeg
     local image_resolution="standard"
     local ffmpeg_threads=2
     local video_preset="medium"
+    local video_crf="$VIDEO_CRF"  # Maintenir la qualité originale
     
-    if [[ "$dataset_key" == *"4000x4000"* ]]; then
-        image_resolution="ultra_high"
-        ffmpeg_threads=1  # Limiter les threads pour économiser la mémoire
-        video_preset="ultrafast"  # Preset plus rapide pour éviter les timeouts
-        log "📊 Détection ultra-haute résolution (4000x4000): optimisation mémoire activée"
-    elif [[ "$dataset_key" == *"2000x2000"* ]]; then
-        image_resolution="high"
-        ffmpeg_threads=2
-        video_preset="fast"
-        log "📊 Détection haute résolution (2000x2000): optimisation modérée"
+    if [ "$is_raspberry_pi" = true ]; then
+        # Optimisations Raspberry Pi 3B+ : SEULEMENT threads et preset (qualité identique)
+        if [[ "$dataset_key" == *"4000x4000"* ]]; then
+            image_resolution="ultra_high"
+            ffmpeg_threads=1  # Un seul thread pour éviter la saturation
+            video_preset="ultrafast"  # Plus rapide mais même qualité
+            log "🍓 Raspberry Pi ultra-haute résolution (4000x4000): 1 thread, preset ultrafast, CRF $video_crf (qualité préservée)"
+        elif [[ "$dataset_key" == *"2000x2000"* ]]; then
+            image_resolution="high"
+            ffmpeg_threads=1  # Un seul thread même pour 2K
+            video_preset="ultrafast"
+            log "🍓 Raspberry Pi haute résolution (2000x2000): 1 thread, preset ultrafast, CRF $video_crf (qualité préservée)"
+        else
+            # Résolution standard sur Raspberry Pi
+            ffmpeg_threads=1
+            video_preset="ultrafast"
+            log "🍓 Raspberry Pi résolution standard: 1 thread, preset ultrafast, CRF $video_crf (qualité préservée)"
+        fi
+    else
+        # Configuration standard pour serveurs/PC
+        if [[ "$dataset_key" == *"4000x4000"* ]]; then
+            image_resolution="ultra_high"
+            ffmpeg_threads=1  # Limiter les threads pour économiser la mémoire
+            video_preset="ultrafast"  # Preset plus rapide pour éviter les timeouts
+            log "📊 Détection ultra-haute résolution (4000x4000): optimisation mémoire activée"
+        elif [[ "$dataset_key" == *"2000x2000"* ]]; then
+            image_resolution="high"
+            ffmpeg_threads=2
+            video_preset="fast"
+            log "📊 Détection haute résolution (2000x2000): optimisation modérée"
+        fi
     fi
 
     # Construction des filtres vidéo selon le type de dataset
@@ -231,6 +283,7 @@ generate_video_for_dataset() {
 
     # Génération vidéo MP4 temporaire
     log "🔄 Génération MP4 temporaire..."
+    log "⚙️ Configuration ffmpeg: $ffmpeg_threads thread(s), preset: $video_preset, CRF: $video_crf"
     local temp_video="/tmp/temp-$dataset_key-$target_date.mp4"
     local success=false
     
@@ -252,7 +305,7 @@ generate_video_for_dataset() {
             -threads "$ffmpeg_threads" \
             -vf "$video_filters" \
             -c:v libx264 \
-            -crf "$VIDEO_CRF" \
+            -crf "$video_crf" \
             -preset "$video_preset" \
             -pix_fmt yuv420p \
             -color_range tv \
@@ -265,7 +318,7 @@ generate_video_for_dataset() {
         # Méthode concat pour NOAA avec optimisations selon la résolution
         local concat_cmd=""
         if [ "$image_resolution" = "ultra_high" ]; then
-            # Pour les images 4000x4000 : paramètres optimisés sans downscale
+            # Pour les images 4000x4000 : même CRF, optimisations performance uniquement
             concat_cmd="ffmpeg -hide_banner -y \
                 -f concat \
                 -safe 0 \
@@ -274,7 +327,7 @@ generate_video_for_dataset() {
                 -r $VIDEO_FPS \
                 -vf \"$video_filters\" \
                 -c:v libx264 \
-                -crf $((VIDEO_CRF + 2)) \
+                -crf $video_crf \
                 -preset $video_preset \
                 -pix_fmt yuv420p \
                 -color_range tv \
@@ -282,7 +335,7 @@ generate_video_for_dataset() {
                 -movflags +faststart \
                 -max_muxing_queue_size 1024 \
                 \"$temp_video\""
-            log "🔧 Optimisation ultra-haute résolution: format pixel correct, CRF+2, muxing_queue étendu"
+            log "🔧 Optimisation ultra-haute résolution: CRF $video_crf (qualité préservée), preset $video_preset"
         else
             # Méthode standard pour les autres résolutions
             concat_cmd="ffmpeg -hide_banner -y \
@@ -293,7 +346,7 @@ generate_video_for_dataset() {
                 -r $VIDEO_FPS \
                 -vf \"$video_filters\" \
                 -c:v libx264 \
-                -crf $VIDEO_CRF \
+                -crf $video_crf \
                 -preset $video_preset \
                 -pix_fmt yuv420p \
                 -color_range tv \

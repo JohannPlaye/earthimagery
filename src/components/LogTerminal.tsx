@@ -22,7 +22,7 @@ export default function LogTerminal() {
   const [availableLogFiles, setAvailableLogFiles] = useState<LogFile[]>([]);
   const [selectedLogFile, setSelectedLogFile] = useState<string>('');
   const [isRealTime, setIsRealTime] = useState(true);
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(''); // Pas de date par défaut pour charger tous les logs
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const terminalRef = useRef<HTMLDivElement>(null);
@@ -48,9 +48,10 @@ export default function LogTerminal() {
   }, []);
 
   // Fonction pour charger les fichiers de logs disponibles
-  const loadAvailableLogFiles = React.useCallback(async (date: string) => {
+  const loadAvailableLogFiles = React.useCallback(async (date?: string) => {
     try {
-      const response = await fetch(`/api/logs/files?date=${date}`);
+      const url = date ? `/api/logs/files?date=${date}` : '/api/logs/files';
+      const response = await fetch(url);
       if (response.ok) {
         const files = await response.json();
         setAvailableLogFiles(files);
@@ -113,7 +114,7 @@ export default function LogTerminal() {
 
   // Charger les fichiers disponibles quand la date change
   useEffect(() => {
-    loadAvailableLogFiles(selectedDate);
+    loadAvailableLogFiles(selectedDate || undefined);
   }, [selectedDate, loadAvailableLogFiles]);
 
   // Gestion du mode temps réel

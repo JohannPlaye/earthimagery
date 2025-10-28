@@ -5,12 +5,10 @@ import path from 'path';
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
+    const date = searchParams.get('date'); // Ne plus utiliser de date par défaut
     
-    // Chemin vers le dossier de logs
-    const logsPath = process.env.NODE_ENV === 'production' 
-      ? (process.env.DATA_PATH_PROD || '/data')
-      : path.join(process.cwd(), 'public', 'data');
+    // Chemin vers le dossier de logs (même logique que les scripts)
+    const logsPath = path.join(process.cwd(), 'public', 'data');
     
     const logsDir = path.join(logsPath, 'logs');
     
@@ -43,7 +41,7 @@ export async function GET(request: Request) {
           fileDate = stats.mtime.toISOString().split('T')[0];
         }
         
-        // Filtrer par date si spécifiée
+        // Filtrer par date seulement si une date est spécifiée
         if (date && fileDate !== date) {
           continue;
         }

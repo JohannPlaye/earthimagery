@@ -23,10 +23,8 @@ export async function GET(request: Request) {
       );
     }
     
-    // Chemin vers le dossier de logs
-    const logsPath = process.env.NODE_ENV === 'production' 
-      ? (process.env.DATA_PATH_PROD || '/data')
-      : path.join(process.cwd(), 'public', 'data');
+    // Chemin vers le dossier de logs (même logique que les scripts)
+    const logsPath = path.join(process.cwd(), 'public', 'data');
     
     const filePath = path.join(logsPath, 'logs', filename);
     

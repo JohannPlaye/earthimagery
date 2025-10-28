@@ -40,7 +40,7 @@ export default function DateSelector({
   children,
 }: React.PropsWithChildren<DateSelectorProps>) {
   const [range, setRange] = useState<SelectionRange>({
-    startDate: new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000), // 7 jours avant
+    startDate: new Date(new Date().getTime() - 1 * 24 * 60 * 60 * 1000), // 1 jour avant (hier)
     endDate: new Date(),
     key: "selection",
   });
@@ -62,13 +62,10 @@ export default function DateSelector({
       return;
     }
     setError(null);
-    const startDateCorrected = new Date(range.startDate);
-    startDateCorrected.setDate(startDateCorrected.getDate() + 1);
-    const endDateInclusive = new Date(range.endDate);
-    endDateInclusive.setDate(endDateInclusive.getDate() + 1);
+    // Pas de décalage : utiliser exactement la période sélectionnée
     onDateRangeSelect({
-      startDate: startDateCorrected,
-      endDate: endDateInclusive
+      startDate: range.startDate,
+      endDate: range.endDate
     });
   };
 
@@ -80,6 +77,7 @@ export default function DateSelector({
         <p className="text-sm font-medium text-gray-300 mb-2">Sélections rapides:</p>
         <div className="flex flex-wrap gap-2">
           {[
+            { label: '2j', days: 1 }, // Hier + aujourd'hui = 2 jours
             { label: '7j', days: 7 },
             { label: '30j', days: 30 },
             { label: '90j', days: 90 },
